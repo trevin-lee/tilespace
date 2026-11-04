@@ -23,14 +23,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build
-        run: swift build -c release && mkdir -p build && swiftc -O Tests/Integration/TestWindow.swift -o build/TestWindow
+        run: swift build -c release
       - name: Grant Accessibility access
         # Runners have SIP off, so the system TCC database can be written. Grant every process
         # that might count as "responsible" for tilespace: the tools themselves and each ancestor
         # of this shell.
         run: |
           db="/Library/Application Support/com.apple.TCC/TCC.db"
-          clients=("$PWD/.build/release/tilespace" "$PWD/.build/release/TileSpaceApp" "$PWD/build/trusted" /bin/zsh /bin/bash)
+          clients=("$PWD/.build/release/tilespace" "$PWD/.build/release/TileSpaceApp" "$PWD/build/trusted" "$PWD/build/input" /bin/zsh /bin/bash)
           pid=$$
           while [ "$pid" -gt 1 ]; do
             clients+=("$(ps -o comm= -p $pid)")

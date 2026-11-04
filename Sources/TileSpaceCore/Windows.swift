@@ -60,6 +60,29 @@ public func focusedWindow() -> AXUIElement? {
     return (v as! AXUIElement)
 }
 
+// The window at a point on screen (whichever app's it is).
+public func window(at p: CGPoint) -> AXUIElement? {
+    let system = AXUIElementCreateSystemWide()
+    AXUIElementSetMessagingTimeout(system, 0.5)
+    var hit: AXUIElement?
+    guard AXUIElementCopyElementAtPosition(system, Float(p.x), Float(p.y), &hit) == .success, let hit else { return nil }
+    var role: CFTypeRef?
+    AXUIElementCopyAttributeValue(hit, kAXRoleAttribute as CFString, &role)
+    if (role as? String) == kAXWindowRole { return hit }
+    var w: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(hit, kAXWindowAttribute as CFString, &w) == .success,
+          let w, CFGetTypeID(w) == AXUIElementGetTypeID() else { return nil }
+    return (w as! AXUIElement)
+}
+
+// A window's frame from the window server: cheaper than asking the app, so it suits
+// checking on every mouse event of a drag.
+public func windowFrame(_ id: Int) -> CGRect? {
+    let l = CGWindowListCopyWindowInfo([.optionIncludingWindow], CGWindowID(id)) as? [[String: Any]]
+    guard let b = l?.first?["kCGWindowBounds"] as? [String: Any] else { return nil }
+    return CGRect(dictionaryRepresentation: b as CFDictionary)
+}
+
 public func frame(of el: AXUIElement) -> CGRect? {
     var p: CFTypeRef?, s: CFTypeRef?
     var origin = CGPoint.zero, size = CGSize.zero

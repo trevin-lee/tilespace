@@ -93,3 +93,42 @@ final class SnapTests: XCTestCase {
         XCTAssertEqual(SnapAction(cliName: "left-half"), .leftHalf)
     }
 }
+
+final class DragSnapTests: XCTestCase {
+    func testEdgesAndCorners() {
+        let f = wide.frame
+        XCTAssertEqual(snapEdge(at: CGPoint(x: f.minX + 2, y: f.midY), in: f), .left)
+        XCTAssertEqual(snapEdge(at: CGPoint(x: f.maxX, y: f.midY), in: f), .right)   // the far edge counts
+        XCTAssertEqual(snapEdge(at: CGPoint(x: f.midX, y: f.minY + 1), in: f), .top)
+        XCTAssertEqual(snapEdge(at: CGPoint(x: f.midX, y: f.maxY - 1), in: f), .bottom)
+        XCTAssertEqual(snapEdge(at: CGPoint(x: f.minX + 20, y: f.minY + 2), in: f), .topLeft)
+        XCTAssertEqual(snapEdge(at: CGPoint(x: f.maxX - 2, y: f.maxY - 20), in: f), .bottomRight)
+        XCTAssertNil(snapEdge(at: CGPoint(x: f.minX + 30, y: f.midY), in: f))
+        XCTAssertNil(snapEdge(at: CGPoint(x: f.minX - 1, y: f.midY), in: f))
+    }
+
+    func testDropTargetsUseTheSnapAreas() {
+        let w = CGRect(x: 2000, y: 300, width: 800, height: 600)
+        let left = dropTarget(at: CGPoint(x: wide.frame.minX + 1, y: 700), window: w, screens: both)!
+        XCTAssertEqual(left, DropTarget(action: .leftHalf, rect: placement(.leftHalf, in: wide.visible)))
+        let bottom = dropTarget(at: CGPoint(x: 4000, y: wide.frame.maxY - 1), window: w, screens: both)!
+        XCTAssertEqual(bottom.action, .centerThird)
+        let corner = dropTarget(at: CGPoint(x: wide.frame.maxX - 1, y: 1), window: w, screens: both)!
+        XCTAssertEqual(corner.action, .lastThreeFourths)
+        XCTAssertNil(dropTarget(at: CGPoint(x: 4000, y: 700), window: w, screens: both))
+    }
+
+    func testMaximizeHeightByDragKeepsTheColumnOnTheTargetDisplay() {
+        // dragged from the ultrawide up to the MacBook's top edge, hanging off its right side
+        let w = CGRect(x: 1500, y: 300, width: 800, height: 600)
+        let t = dropTarget(at: CGPoint(x: 900, y: 1), window: w, screens: both)!
+        XCTAssertEqual(t.action, .maximizeHeight)
+        XCTAssertEqual(t.rect, CGRect(x: 928, y: 33, width: 800, height: 1084))
+    }
+
+    func testUnsnapKeepsTheCursorOnTheTitleBar() {
+        let half = CGRect(x: 0, y: 0, width: 2000, height: 1000)
+        let r = unsnapFrame(half, size: CGSize(width: 800, height: 600), cursor: CGPoint(x: 1500, y: 10))
+        XCTAssertEqual(r, CGRect(x: 900, y: 0, width: 800, height: 600))   // cursor 3/4 across before and after
+    }
+}

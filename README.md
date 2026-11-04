@@ -13,9 +13,10 @@ Early and changing fast. What works today:
 - **A menu-bar app with Rectangle-style snapping**: halves, quarters, thirds, two-thirds,
   maximize, maximize height, center, larger/smaller, restore, and previous/next display, on
   Rectangle's Ctrl+Option shortcuts. Repeating Left or Right Half moves the window to the
-  next display over. Repeating First or Last Third cycles through the thirds.
+  next display over. Repeating First or Last Third cycles through the thirds. Dragging a
+  window to a screen edge or corner snaps it too.
 
-Planned: snapping by dragging to a screen edge; moving a window to desktop N from the app;
+Planned: moving a window to desktop N from the app;
 opt-in tiling for chosen windows on a desktop (shared edges, drag to reorder), while
 everything else floats; layouts saved per monitor setup; and a virtual display to park
 windows on when there's only one screen.
@@ -32,8 +33,8 @@ The app asks for Accessibility access the first time it runs. The build script s
 your Apple Development certificate if you have one, so the permission survives rebuilds. With
 an ad-hoc signature, you have to grant it again after every build.
 
-If Rectangle is running, the app leaves the shortcuts to it, because both apps would
-otherwise act on every key press. Its menu has a Quit Rectangle button.
+If Rectangle is running, the app leaves snapping to it, because both apps would otherwise act
+on every key press and drag. Its menu has a Quit Rectangle button.
 
 ## Use
 
@@ -49,6 +50,16 @@ otherwise act on every key press. Its menu has a Quit Rectangle button.
 | ⌃⌥ = and − | Larger, smaller |
 | ⌃⌥ ⌫ | Restore |
 | ⌃⌥⌘ ← → | Previous, next display |
+
+Or drag a window to a screen edge or corner. A preview shows where it will go, and Esc
+cancels. Dragging a snapped window away gives it back its size from before.
+
+| Drag to | Action |
+|---|---|
+| Left or right edge | Left or right half |
+| Top edge | Maximize height |
+| Top-left or top-right corner | First fourth, last three fourths |
+| Bottom-left corner, bottom edge, bottom-right corner | First, center, last third |
 
 Scripts and launchers can trigger the same actions:
 `open -g "tilespace://execute-action?name=left-half"`.

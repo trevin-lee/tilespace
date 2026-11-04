@@ -1,4 +1,5 @@
-// TileSpace: a menu-bar app for arranging windows. For now, Rectangle's keyboard snaps.
+// TileSpace: a menu-bar app for arranging windows. For now, Rectangle-style snapping by
+// keyboard and by dragging to screen edges.
 import AppKit
 import ApplicationServices
 import Carbon
@@ -9,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     let hotkeys = Hotkeys()
     let snapper = Snapper()
+    lazy var dragSnapper = DragSnapper(snapper: snapper)
     var failed: [SnapAction] = []   // shortcuts that couldn't be registered
     let rectangle = "com.knollsoft.Rectangle"
 
@@ -25,8 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.button?.image = NSImage(systemSymbolName: "rectangle.split.2x1", accessibilityDescription: "TileSpace")
         item.menu = NSMenu()
         item.menu!.delegate = self
-        // Rectangle gets the same key presses, so both would snap (and the second snap counts as
-        // a repeat). Leave the shortcuts to it while it runs.
+        // Rectangle gets the same key presses and drags, so both would snap (and the second snap
+        // counts as a repeat). Leave snapping to it while it runs.
         let ws = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
             ws.addObserver(forName: name, object: nil, queue: .main) { [unowned self] n in
@@ -46,10 +48,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func updateShortcuts() {
         hotkeys.unregisterAll()
+        dragSnapper.stop()
         failed = []
         guard !rectangleRunning else { return }
+        dragSnapper.start()
         for (action, s) in shortcuts.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
-            if !hotkeys.register(s, { [unowned self] in snapper.run(action) }) { failed.append(action) }
+            if !hotkeys.register(s, { [unowned self] in snapper.run(action) }) {
+                failed.append(action)
+                NSLog("couldn't set up the shortcut for %@", action.title)
+            }
         }
     }
 
@@ -61,7 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(.separator())
         }
         if rectangleRunning {
-            menu.addItem(withTitle: "Shortcuts are off while Rectangle runs", action: nil, keyEquivalent: "")
+            menu.addItem(withTitle: "Snapping is off while Rectangle runs", action: nil, keyEquivalent: "")
             menu.addItem(withTitle: "Quit Rectangle", action: #selector(quitRectangle), keyEquivalent: "").target = self
             menu.addItem(.separator())
         } else if !failed.isEmpty {

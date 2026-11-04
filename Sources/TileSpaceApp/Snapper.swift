@@ -55,6 +55,20 @@ final class Snapper {
                              restore: untouched ? rec!.restore : f)
     }
 
+    // The frame from before a window's first snap, if it's still where its last snap put it.
+    func restoreFrame(of id: Int, at frame: CGRect) -> CGRect? {
+        guard let rec = records[id], close(rec.frame, frame) else { return nil }
+        return rec.restore
+    }
+
+    func forget(_ id: Int) { records[id] = nil }
+
+    // Snap a window dropped on a snap area; Restore will put it back at `restore`.
+    func drop(_ el: AXUIElement, id: Int, on t: DropTarget, restore: CGRect) {
+        setFrame(el, t.rect)
+        records[id] = Record(last: LastSnap(pressed: t.action, result: t.action), frame: frame(of: el) ?? t.rect, restore: restore)
+    }
+
     private func close(_ a: CGRect, _ b: CGRect) -> Bool {
         abs(a.minX - b.minX) <= 2 && abs(a.minY - b.minY) <= 2 && abs(a.width - b.width) <= 2 && abs(a.height - b.height) <= 2
     }
