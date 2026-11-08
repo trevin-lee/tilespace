@@ -65,6 +65,7 @@ public struct LastSnap: Equatable {
 public struct SnapResult: Equatable {
     public let rect: CGRect
     public let result: SnapAction   // can differ from the key pressed (repeats, other display)
+    public init(rect: CGRect, result: SnapAction) { self.rect = rect; self.result = result }
 }
 
 // Where `action` puts a window that's at `window`. `last` is the previous snap if the window

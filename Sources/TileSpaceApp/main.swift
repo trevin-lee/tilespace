@@ -1,5 +1,6 @@
-// TileSpace: a menu-bar app for arranging windows. For now, Rectangle-style snapping by
-// keyboard and by dragging to screen edges.
+// TileSpace: a menu-bar app for arranging windows, and the core that the `tilespace` command and
+// agents talk to through its MCP server. For now, Rectangle-style snapping by keyboard and by
+// dragging to screen edges, and moving windows between desktops.
 import AppKit
 import ApplicationServices
 import Carbon
@@ -11,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let hotkeys = Hotkeys()
     let snapper = Snapper()
     lazy var dragSnapper = DragSnapper(snapper: snapper)
+    lazy var tools = Tools(snapper: snapper)
     var failed: [SnapAction] = []   // shortcuts that couldn't be registered
     let rectangle = "com.knollsoft.Rectangle"
 
@@ -24,6 +26,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     ]
 
     func applicationDidFinishLaunching(_ n: Notification) {
+        tools.start()
+        // Launch at Login is on by default, so the MCP server is always there; turning it off in
+        // the menu sticks.
+        if !UserDefaults.standard.bool(forKey: "loginItemSetUp") {
+            UserDefaults.standard.set(true, forKey: "loginItemSetUp")
+            if SMAppService.mainApp.status != .enabled { try? SMAppService.mainApp.register() }
+        }
         item.button?.image = NSImage(systemSymbolName: "rectangle.split.2x1", accessibilityDescription: "TileSpace")
         item.menu = NSMenu()
         item.menu!.delegate = self
@@ -53,11 +62,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard !rectangleRunning else { return }
         dragSnapper.start()
         for (action, s) in shortcuts.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
-            if !hotkeys.register(s, { [unowned self] in snapper.run(action) }) {
+            if !hotkeys.register(s, { [unowned self] in snapFocused(action) }) {
                 failed.append(action)
                 NSLog("couldn't set up the shortcut for %@", action.title)
             }
         }
+    }
+
+    func snapFocused(_ action: SnapAction) {
+        do { try snapper.run(action) } catch { NSSound.beep() }
     }
 
     // rebuilt each time it opens, so the permission and login items are current
@@ -87,6 +100,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             menu.addItem(.separator())
         }
+        menu.addItem(withTitle: "MCP Server: \(tools.status)", action: nil, keyEquivalent: "")
+        menu.addItem(withTitle: "Copy MCP Server URL", action: #selector(copyURL), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Add to Claude Code", action: #selector(addToClaudeCode), keyEquivalent: "").target = self
+        menu.addItem(.separator())
         let login = menu.addItem(withTitle: "Launch at Login", action: #selector(toggleLogin), keyEquivalent: "")
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -95,14 +112,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func runAction(_ mi: NSMenuItem) {
         // the menu doesn't take focus from the frontmost app, so this acts on its window
-        if let raw = mi.representedObject as? String, let a = SnapAction(rawValue: raw) { snapper.run(a) }
+        if let raw = mi.representedObject as? String, let a = SnapAction(rawValue: raw) { snapFocused(a) }
     }
 
     @objc func openURL(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
         guard let s = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue, let url = URLComponents(string: s),
               url.host == "execute-action", let name = url.queryItems?.first(where: { $0.name == "name" })?.value,
               let action = SnapAction(cliName: name) else { return NSSound.beep() }
-        snapper.run(action)
+        snapFocused(action)
+    }
+
+    @objc func copyURL() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(serverURL, forType: .string)
+    }
+
+    @objc func addToClaudeCode() {
+        // a login shell, so `claude` is on the PATH the way it is in Terminal
+        let (ok, output) = addToClaudeCodeConfig()
+        let alert = NSAlert()
+        alert.messageText = ok ? "Added TileSpace to Claude Code" : "Couldn't add TileSpace to Claude Code"
+        alert.informativeText = ok ? "New Claude Code sessions have TileSpace's tools. In a running session, use /mcp to connect."
+                                   : output
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     @objc func quitRectangle() {

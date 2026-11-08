@@ -37,22 +37,28 @@ final class Snapper {
     private struct Record { let last: LastSnap; let frame: CGRect; let restore: CGRect }
     private var records: [Int: Record] = [:]   // by window id
 
-    func run(_ action: SnapAction) {
-        guard let el = focusedWindow(), let id = windowID(of: el), let f = frame(of: el) else { return NSSound.beep() }
+    // Snap a window (the focused one if nil); returns where it put it.
+    @discardableResult
+    func run(_ action: SnapAction, on window: AXUIElement? = nil) throws -> SnapResult {
+        guard let el = window ?? focusedWindow() else { throw TileSpaceError("the frontmost app has no focused window") }
+        guard let id = windowID(of: el), let f = frame(of: el) else { throw TileSpaceError("can't read that window's frame") }
         let rec = records[id]
         if action == .restore {
-            guard let rec else { return NSSound.beep() }
+            guard let rec else { throw TileSpaceError("that window hasn't been snapped, so there's nothing to restore") }
             setFrame(el, rec.restore)
             records[id] = nil
-            return
+            return SnapResult(rect: rec.restore, result: .restore)
         }
         // the last snap only counts if the window is still where it put it
         let untouched = rec.map { close($0.frame, f) } ?? false
-        guard let r = snap(action, window: f, last: untouched ? rec!.last : nil, screens: screens()) else { return NSSound.beep() }
+        guard let r = snap(action, window: f, last: untouched ? rec!.last : nil, screens: screens()) else {
+            throw TileSpaceError("can't \(action.title.lowercased()) this window")
+        }
         setFrame(el, r.rect)
         // remember where it actually went: apps can round the size (Terminal snaps to rows)
         records[id] = Record(last: LastSnap(pressed: action, result: r.result), frame: frame(of: el) ?? r.rect,
                              restore: untouched ? rec!.restore : f)
+        return r
     }
 
     // The frame from before a window's first snap, if it's still where its last snap put it.

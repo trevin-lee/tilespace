@@ -1,8 +1,8 @@
 #!/bin/zsh
-# End-to-end checks on a real window: open a test window, then snap it with `tilespace snap`,
-# by dragging it to screen edges with the app running, and with the app's shortcuts, checking
-# where it lands each time. It takes over the mouse and keyboard, so it's meant for CI (a
-# macOS runner), not a desk.
+# End-to-end checks on a real window: start the app (the core, with its MCP server), open a
+# test window, then snap it through the `tilespace` command (a client of the app's server), by
+# dragging it to screen edges, and with the app's shortcuts, checking where it lands each time.
+# It takes over the mouse and keyboard, so it's meant for CI (a macOS runner), not a desk.
 #
 # Needs Accessibility access for whatever runs it (on a Mac: the terminal app).
 set -euo pipefail
@@ -51,7 +51,29 @@ reset_window() { kill -USR1 $win; sleep 0.5; read_state; rw=$ww rh=$wh; }
 # drag the window by a point inside it to x,y
 drag_to() { read_state; build/input drag $(( wx + ww / 2 )) $(( wy + wh / 2 )) $1 $2 ${3:-}; }
 
-echo "--- tilespace snap"
+pass() { echo "ok    $1"; }
+fail() { echo "FAIL  $1"; failed=1; }
+
+echo "--- the app and its MCP server"
+.build/release/TileSpaceApp & app=$!
+url=http://127.0.0.1:${TILESPACE_PORT:-8453}/mcp
+mcp() { curl -s -o /dev/null -w '%{http_code}' -X POST $url -H 'Content-Type: application/json' "$@"; }
+for i in {1..40}; do [[ $(mcp -d '{"jsonrpc":"2.0","id":0,"method":"ping"}') == 200 ]] && break; sleep 0.25; done
+if kill -0 $app 2>/dev/null; then pass "menu-bar app runs"; else fail "menu-bar app exited"; exit 1; fi
+init=$(curl -s -X POST $url -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}')
+[[ $init == *'"name":"tilespace"'* ]] && pass "MCP initialize" || fail "MCP initialize: $init"
+tools=$(curl -s -X POST $url -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
+[[ $tools == *list_windows*list_desktops*snap_window*move_window_to_desktop* ]] && pass "MCP tools/list" || fail "MCP tools/list: $tools"
+[[ $(mcp -H 'Origin: https://example.com' -d '{}') == 403 ]] && pass "MCP turns away browsers" || fail "MCP let a browser Origin in"
+
+echo "--- tilespace (through the app)"
+[[ $($tilespace list) == *"tilespace test"* ]] && pass "tilespace list shows the test window" || fail "tilespace list: no test window"
+[[ -n $($tilespace spaces) ]] && pass "tilespace spaces" || fail "tilespace spaces printed nothing"
+# one display: there's nowhere to park the window, so this has to fail, with a reason
+if err=$($tilespace move "tilespace test" 2 2>&1); then fail "tilespace move should fail on one display: $err"
+else [[ -n $err ]] && pass "tilespace move on one display fails: $err" || fail "tilespace move failed silently"; fi
+
 for action in left-half right-half top-half bottom-half top-left bottom-right \
               first-third center-third last-third first-two-thirds center-two-thirds last-two-thirds \
               maximize smaller larger center maximize-height; do
@@ -61,12 +83,7 @@ for action in left-half right-half top-half bottom-half top-left bottom-right \
     check "snap $action" $want
 done
 
-echo "--- the app"
-.build/release/TileSpaceApp & app=$!
-sleep 3
-if kill -0 $app 2>/dev/null; then echo "ok    menu-bar app runs"
-else echo "FAIL  menu-bar app exited"; exit 1; fi
-
+echo "--- dragging"
 reset_window
 drag_to $(( sx + 1 )) $(( sy + sh / 2 ))
 check "drag to the left edge: left half" $vx $vy $(( vw / 2 )) $vh

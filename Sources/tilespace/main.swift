@@ -1,10 +1,6 @@
-// tilespace: move windows between native macOS desktops (Spaces) and snap them, with SIP on.
-//
-// macOS has no API for moving a window to another desktop, and on macOS 27 it ignores
-// synthetic title-bar drags. But moving a window onto another display puts it on
-// whichever desktop that display is showing (that's how Rectangle's "next display"
-// works). So: park the window on the other display, switch its home display to the
-// target desktop, move the window back to exactly where it was.
+// tilespace: the command-line client of TileSpace.app. Each command is one call to a tool on the
+// app's MCP server (the same tools agents get), so the app does the work and remembers past
+// snaps, just as it does for the shortcuts. Starts the app if it isn't running.
 //
 //   tilespace list                          every window, with its desktop and id
 //   tilespace spaces                        desktops per display (* = showing)
@@ -12,128 +8,110 @@
 //   tilespace move <window> <desktop> <display>   ...on another display ("odyssey", "built-in")
 //   tilespace snap <action> [<window>]      a Rectangle-style snap, e.g. left-half (no window =
 //                                           the frontmost app's)
+//   tilespace mcp [install]                 the MCP server's address, or add it to Claude Code
 //
-// <window> is a window id from `tilespace list`, or text matched against
-// "<app> <title>" (case-insensitive, first match). The window must be on a desktop
-// that's showing. --follow stays on the target desktop instead of switching back.
-// Needs two displays.
-//
-// Desktop shortcuts number every desktop across all displays, in display order
-// (MacBook first): Ctrl+1..9, Ctrl+0 = 10, Ctrl+Option+1..6 = 11..16. These are set
-// in System Settings > Keyboard > Keyboard Shortcuts > Mission Control.
-//
-// Build: swift build -c release, then copy .build/release/tilespace to ~/.local/bin
-import AppKit
-import ApplicationServices
-import CoreGraphics
+// <window> is a window id from `tilespace list`, or text matched against "<app> <title>"
+// (case-insensitive, first match). The window must be on a desktop that's showing. --follow
+// stays on the target desktop instead of switching back.
+import Foundation
 import TileSpaceCore
 
-// set a frame and give the app time to apply it
-func setFrame(_ el: AXUIElement, _ r: CGRect) {
-    TileSpaceCore.setFrame(el, r)
-    usleep(250_000)
+func die(_ s: String) -> Never { FileHandle.standardError.write((s + "\n").data(using: .utf8)!); exit(1) }
+
+let usage = """
+    usage: tilespace list
+           tilespace spaces
+           tilespace move <window id or text> <desktop> [<display>] [--follow]
+           tilespace snap <action> [<window id or text>]
+           tilespace mcp [install]
+    """
+
+func post(_ body: Data) -> Result<Data, Error> {
+    var req = URLRequest(url: URL(string: serverURL)!, timeoutInterval: 30)   // moves take a few seconds
+    req.httpMethod = "POST"
+    req.httpBody = body
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.setValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
+    let done = DispatchSemaphore(value: 0)
+    var out: Result<Data, Error> = .failure(TileSpaceError("no response"))
+    URLSession.shared.dataTask(with: req) { data, resp, err in
+        if let err { out = .failure(err) }
+        else if let http = resp as? HTTPURLResponse, http.statusCode != 200 {
+            out = .failure(TileSpaceError("TileSpace answered \(http.statusCode): \(String(decoding: data ?? Data(), as: UTF8.self))"))
+        } else { out = .success(data ?? Data()) }
+        done.signal()
+    }.resume()
+    done.wait()
+    return out
 }
 
-// MARK: Main
+// Call a tool on the app, starting the app first if nothing is listening.
+func call(_ tool: Tool, _ arguments: [String: Any] = [:]) -> Never {
+    let request: [String: Any] = ["jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                  "params": ["name": tool.rawValue, "arguments": arguments]]
+    let body = try! JSONSerialization.data(withJSONObject: request)
+    var reply = post(body)
+    if case .failure(let e as URLError) = reply, e.code == .cannotConnectToHost {
+        let open = Process()
+        open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        open.arguments = ["-g", "-b", "com.trevinlee.tilespace"]
+        open.standardError = FileHandle.nullDevice
+        try? open.run()
+        open.waitUntilExit()
+        guard open.terminationStatus == 0 else {
+            die("TileSpace isn't running, and couldn't be started. Install it with scripts/build-app.sh --install.")
+        }
+        for _ in 0..<40 {   // up to 10 seconds for it to start listening
+            usleep(250_000)
+            reply = post(body)
+            if case .failure(let e as URLError) = reply, e.code == .cannotConnectToHost { continue }
+            break
+        }
+    }
+    switch reply {
+    case .failure(let e):
+        die("couldn't reach TileSpace at \(serverURL): \(e.localizedDescription)")
+    case .success(let data):
+        let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        if let err = json?["error"] as? [String: Any] { die(err["message"] as? String ?? "error") }
+        guard let result = json?["result"] as? [String: Any] else { die("unexpected reply from TileSpace") }
+        let text = (result["content"] as? [[String: Any]] ?? []).compactMap { $0["text"] as? String }.joined(separator: "\n")
+        if result["isError"] as? Bool == true { die(text) }
+        if !text.isEmpty { print(text) }
+        exit(0)
+    }
+}
 
 var args = Array(CommandLine.arguments.dropFirst())
 let follow = args.contains("--follow"); args.removeAll { $0 == "--follow" }
 
-func die(_ s: String) -> Never { FileHandle.standardError.write((s + "\n").data(using: .utf8)!); exit(1) }
-
 switch args.first {
 case "list":
-    // every titled window, with "<display> <desktop>"
-    var label: [Int: String] = [:]
-    for d in managedSpaces() { for (i, id) in d.spaces.enumerated() { label[id] = "\(displayName(d.uuid).prefix(10)) \(i + 1)" } }
-    let l = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
-    var rows: [String] = []
-    for w in l where (w["kCGWindowLayer"] as? Int) == 0 {
-        guard let b = w["kCGWindowBounds"] as? [String: Any], let r = CGRect(dictionaryRepresentation: b as CFDictionary),
-              r.width > 100, r.height > 100, let t = w["kCGWindowName"] as? String, !t.isEmpty else { continue }
-        let id = w["kCGWindowNumber"] as! Int
-        let where_ = spaces(of: id).compactMap { label[$0] }.joined(separator: ",")
-        if where_.isEmpty { continue }
-        rows.append(String(format: "%-13@ %6d  %-18@ %@", where_ as NSString, id, String((w["kCGWindowOwnerName"] as? String ?? "?").prefix(18)) as NSString, t as NSString))
-    }
-    rows.sorted().forEach { print($0) }
-case "snap":
-    guard args.count >= 2, let action = SnapAction(cliName: args[1]), action != .restore else {
-        die("usage: tilespace snap <action> [<window>]\nactions: " +
-            SnapAction.allCases.filter { $0 != .restore }.map(\.cliName).joined(separator: " "))
-    }
-    let el: AXUIElement
-    if args.count >= 3 {
-        guard let w = find(args[2...].joined(separator: " ")) else { die("no window on a showing desktop matches '\(args[2])'") }
-        guard let e = axWindow(w) else { die("can't reach \(w.app)'s window through Accessibility") }
-        el = e
-    } else {
-        guard let e = focusedWindow() else { die("the frontmost app has no focused window") }
-        el = e
-    }
-    guard let f = frame(of: el), let r = snap(action, window: f, last: nil, screens: screens()) else {
-        die("can't \(action.title.lowercased()) this window")
-    }
-    setFrame(el, r.rect)
-    print("\(r.result.cliName): \(Int(r.rect.minX)),\(Int(r.rect.minY)) \(Int(r.rect.width))x\(Int(r.rect.height))")
+    call(.listWindows)
 case "spaces":
-    for d in managedSpaces() {
-        let s = d.spaces.enumerated().map { "\($0.offset + 1)\($0.element == d.current ? "*" : "")" }.joined(separator: " ")
-        print("\(displayName(d.uuid)): \(s)")
+    call(.listDesktops)
+case "snap":
+    guard args.count >= 2, SnapAction(cliName: args[1]) != nil else {
+        die("usage: tilespace snap <action> [<window>]\nactions: " + SnapAction.allCases.map(\.cliName).joined(separator: " "))
     }
-case "move" where args.count == 4:
-    // to a desktop on another display: show that desktop there, then move the window onto it
-    let q = args[1]
-    guard let target = Int(args[2]), target >= 1 else { die("desktop must be a number starting at 1") }
-    guard let w = find(q) else { die("no window on a showing desktop matches '\(q)'; try `tilespace list`") }
-    let all = managedSpaces()
-    guard let d = all.first(where: { displayName($0.uuid).lowercased().contains(args[3].lowercased()) }),
-          let dest = displayBounds(d.uuid) else { die("no display matches '\(args[3])'") }
-    guard target <= d.spaces.count else { die("\(displayName(d.uuid)) only has \(d.spaces.count) desktops") }
-    let offset = all.prefix(while: { $0.uuid != d.uuid }).reduce(0) { $0 + $1.spaces.count }
-    guard let el = axWindow(w) else { die("can't reach \(w.app)'s window through Accessibility") }
-    if d.current != d.spaces[target - 1] { switchTo(offset + target) }
-    let size = CGSize(width: min(w.frame.width, dest.width - 80), height: min(w.frame.height, dest.height - 100))
-    setFrame(el, CGRect(x: dest.midX - size.width / 2, y: dest.midY - size.height / 2, width: size.width, height: size.height))
-    usleep(300_000)
-    if spaces(of: w.id) == [d.spaces[target - 1]] { print("moved \(w.app) — \(w.title) to desktop \(target) on \(displayName(d.uuid))") }
-    else { die("\(w.app) didn't land on desktop \(target); check `tilespace list`") }
-case "move" where args.count == 3:
-    let q = args[1]
-    guard let target = Int(args[2]), target >= 1 else { die("desktop must be a number starting at 1") }
-    guard let w = find(q) else { die("no window on a showing desktop matches '\(q)'; try `tilespace list`") }
-    // which display/desktop the window belongs to (by desktop membership, so it works
-    // even for a window hanging off the edge of its screen)
-    let mine = spaces(of: w.id)
-    guard let d = managedSpaces().first(where: { $0.spaces.contains { mine.contains($0) } }),
-          let cur = d.spaces.firstIndex(where: { mine.contains($0) }), d.spaces[cur] == d.current
-    else { die("couldn't work out which desktop the window is on, or that desktop isn't showing") }
-    let uuid = d.uuid
-    guard target <= d.spaces.count else { die("\(displayName(uuid)) only has \(d.spaces.count) desktops") }
-    if target - 1 == cur { print("already on desktop \(target)"); exit(0) }
-    let all = managedSpaces()
-    let offset = all.prefix(while: { $0.uuid != uuid }).reduce(0) { $0 + $1.spaces.count }
-    guard offset + target <= 16 else { die("macOS only has shortcuts for 16 desktops") }
-    guard let other = all.first(where: { $0.uuid != uuid }), let park = displayBounds(other.uuid)
-    else { die("needs a second display to park the window on") }
-    guard let el = axWindow(w) else { die("can't reach \(w.app)'s window through Accessibility") }
-
-    // 1. park it on the other display (it joins whatever desktop is showing there)
-    setFrame(el, CGRect(x: park.minX + 40, y: park.minY + 60,
-                        width: min(w.frame.width, park.width - 80), height: min(w.frame.height, park.height - 100)))
-    // 2. show the target desktop on the home display; 3. bring the window back
-    switchTo(offset + target)
-    setFrame(el, w.frame)
-    usleep(300_000)
-    let arrived = spaces(of: w.id) == [d.spaces[target - 1]]
-    if !follow { switchTo(offset + cur + 1) }
-    if arrived { print("moved \(w.app) — \(w.title) to desktop \(target) on \(displayName(uuid))") }
-    else { die("\(w.app) didn't land on desktop \(target); check `tilespace list`") }
-default:
+    var a: [String: Any] = ["action": args[1]]
+    if args.count >= 3 { a["window"] = args[2...].joined(separator: " ") }
+    call(.snapWindow, a)
+case "move" where args.count == 3 || args.count == 4:
+    guard let desktop = Int(args[2]) else { die("desktop must be a number starting at 1") }
+    var a: [String: Any] = ["window": args[1], "desktop": desktop, "follow": follow]
+    if args.count == 4 { a["display"] = args[3] }
+    call(.moveWindowToDesktop, a)
+case "mcp" where args.count == 1:
     print("""
-        usage: tilespace list
-               tilespace spaces
-               tilespace move <window id or text> <desktop> [<display>] [--follow]
-               tilespace snap <action> [<window id or text>]
+        TileSpace's MCP server: \(serverURL) (Streamable HTTP, on while TileSpace runs)
+        Add it to Claude Code with `tilespace mcp install`, or in another client as an HTTP server at that URL.
         """)
+case "mcp" where args.count == 2 && args[1] == "install":
+    let (ok, output) = addToClaudeCodeConfig()
+    if !ok { die(output) }
+    print(output.isEmpty ? "added TileSpace to Claude Code" : output)
+default:
+    print(usage)
+    exit(args.isEmpty ? 0 : 1)
 }
