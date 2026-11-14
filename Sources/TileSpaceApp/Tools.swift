@@ -23,6 +23,9 @@ final class Tools {
 
     private func call(_ tool: Tool, _ args: [String: Any]) -> ToolResult {
         do {
+            if tool != .listDesktops && !AXIsProcessTrusted() {
+                throw TileSpaceError("TileSpace doesn't have Accessibility access. Allow it in System Settings > Privacy & Security > Accessibility (TileSpace's menu has a shortcut there).")
+            }
             switch tool {
             case .listWindows:
                 return ToolResult(listWindows())
@@ -35,7 +38,7 @@ final class Tools {
                 }
                 var el: AXUIElement?
                 if let q = window(args) {
-                    guard let w = find(q) else { throw TileSpaceError("no window on a showing desktop matches '\(q)'") }
+                    let w = try findWindow(q)
                     guard let e = axWindow(w) else { throw TileSpaceError("can't reach \(w.app)'s window through Accessibility") }
                     el = e
                 }

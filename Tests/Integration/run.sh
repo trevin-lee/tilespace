@@ -1,14 +1,15 @@
 #!/bin/zsh
-# End-to-end checks on a real window: start the app (the core, with its MCP server), open a
-# test window, then snap it through the `tilespace` command (a client of the app's server), by
-# dragging it to screen edges, and with the app's shortcuts, checking where it lands each time.
-# It takes over the mouse and keyboard, so it's meant for CI (a macOS runner), not a desk.
+# End-to-end checks on a real window: start TileSpace.app (the core, with its MCP server) the
+# way Finder does, open a test window, then snap it through the `tilespace` command (a client of
+# the app's server), by dragging it to screen edges, and with the app's shortcuts, checking where
+# it lands each time. It takes over the mouse and keyboard, so it's meant for CI (a macOS
+# runner), not a desk.
 #
-# Needs Accessibility access for whatever runs it (on a Mac: the terminal app).
+# Needs Accessibility access for whatever runs it (on a Mac: the terminal app) and for the app.
 set -euo pipefail
 cd "${0:A:h}/../.."
 
-swift build -c release
+scripts/build-app.sh
 tilespace=.build/release/tilespace
 mkdir -p build
 swiftc -O Tests/Integration/TestWindow.swift -o build/TestWindow
@@ -25,8 +26,7 @@ fi
 
 state=$(mktemp)
 build/TestWindow $state & win=$!
-app=
-trap 'kill $win $app 2>/dev/null' EXIT
+trap 'kill $win 2>/dev/null; pkill -x TileSpace' EXIT
 sleep 2
 
 failed=0
@@ -55,11 +55,13 @@ pass() { echo "ok    $1"; }
 fail() { echo "FAIL  $1"; failed=1; }
 
 echo "--- the app and its MCP server"
-.build/release/TileSpaceApp & app=$!
-url=http://127.0.0.1:${TILESPACE_PORT:-8453}/mcp
+# with `open`, the app is its own process, as when started from Finder or at login, so it has
+# only its own permissions: not the shell's (on the runner, the shell can record the screen)
+open -g --stdout $PWD/build/app.log --stderr $PWD/build/app.log build/TileSpace.app
+url=http://127.0.0.1:8453/mcp
 mcp() { curl -s -o /dev/null -w '%{http_code}' -X POST $url -H 'Content-Type: application/json' "$@"; }
 for i in {1..40}; do [[ $(mcp -d '{"jsonrpc":"2.0","id":0,"method":"ping"}') == 200 ]] && break; sleep 0.25; done
-if kill -0 $app 2>/dev/null; then pass "menu-bar app runs"; else fail "menu-bar app exited"; exit 1; fi
+if pgrep -x TileSpace >/dev/null; then pass "menu-bar app runs"; else fail "menu-bar app exited: $(<build/app.log)"; exit 1; fi
 init=$(curl -s -X POST $url -H 'Content-Type: application/json' \
     -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}')
 [[ $init == *'"name":"tilespace"'* ]] && pass "MCP initialize" || fail "MCP initialize: $init"
@@ -68,11 +70,33 @@ tools=$(curl -s -X POST $url -H 'Content-Type: application/json' -d '{"jsonrpc":
 [[ $(mcp -H 'Origin: https://example.com' -d '{}') == 403 ]] && pass "MCP turns away browsers" || fail "MCP let a browser Origin in"
 
 echo "--- tilespace (through the app)"
-[[ $($tilespace list) == *"tilespace test"* ]] && pass "tilespace list shows the test window" || fail "tilespace list: no test window"
-[[ -n $($tilespace spaces) ]] && pass "tilespace spaces" || fail "tilespace spaces printed nothing"
-# one display: there's nowhere to park the window, so this has to fail, with a reason
-if err=$($tilespace move "tilespace test" 2 2>&1); then fail "tilespace move should fail on one display: $err"
-else [[ -n $err ]] && pass "tilespace move on one display fails: $err" || fail "tilespace move failed silently"; fi
+$tilespace --help | grep -q "usage: tilespace" && pass "tilespace --help" || fail "tilespace --help"
+$tilespace bogus 2>/dev/null && fail "tilespace bogus should fail" || pass "tilespace bogus fails"
+# the window's title comes from Accessibility: the app has no Screen Recording access
+windows=$($tilespace windows) || fail "tilespace windows: $windows"
+row=${(M)${(f)windows}:#*tilespace test*}
+[[ -n $row ]] && pass "tilespace windows shows the test window: $row" || fail "tilespace windows: no test window in: $windows"
+[[ $row == *[0-9]\** ]] && pass "its desktop is marked showing" || fail "its desktop isn't marked showing: $row"
+[[ $($tilespace list) == *"tilespace test"* ]] && pass "tilespace list (the old name)" || fail "tilespace list"
+[[ $($tilespace desktops) == *1\** ]] && pass "tilespace desktops" || fail "tilespace desktops: $($tilespace desktops)"
+[[ -n $($tilespace spaces) ]] && pass "tilespace spaces (the old name)" || fail "tilespace spaces printed nothing"
+# moves that can't work have to say why, before anything moves
+expect_error() {   # expect_error <label> <text the error has to contain> <args...>
+    local label=$1 want=$2 err; shift 2
+    if err=$($tilespace "$@" 2>&1); then fail "$label should fail: $err"
+    elif [[ $err == *$want* ]]; then pass "$label fails: $err"
+    else fail "$label: wanted an error about '$want', got: $err"; fi
+}
+expect_error "move on one display" "second display" move "tilespace test" 2
+expect_error "move to desktop 0" "starting at 1" move "tilespace test" 0
+expect_error "move to an unknown display" "no display matches" move "tilespace test" 2 nosuchdisplay
+expect_error "snap an unknown window" "no window matches" snap left-half "no such window"
+
+# any id from the list works as the window argument
+ids=(${(s: :)${row#*\*}})
+said=$($tilespace snap left-half $ids[1])
+want=(${(s: :)${${said#*: }/,/ }/x/ })
+check "snap left-half by window id $ids[1]" $want
 
 for action in left-half right-half top-half bottom-half top-left bottom-right \
               first-third center-third last-third first-two-thirds center-two-thirds last-two-thirds \

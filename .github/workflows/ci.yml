@@ -25,12 +25,15 @@ jobs:
       - name: Build
         run: swift build -c release
       - name: Grant Accessibility access
-        # Runners have SIP off, so the system TCC database can be written. Grant every process
-        # that might count as "responsible" for tilespace: the tools themselves and each ancestor
-        # of this shell.
+        # Runners have SIP off, so the system TCC database can be written. Grant the app (by
+        # bundle id and by path), the test tools, and each ancestor of this shell, any of which
+        # might count as "responsible" for a test tool. Screen Recording isn't granted to the
+        # app: window titles have to work without it, as on a real install.
         run: |
           db="/Library/Application Support/com.apple.TCC/TCC.db"
-          clients=("$PWD/.build/release/tilespace" "$PWD/.build/release/TileSpaceApp" "$PWD/build/trusted" "$PWD/build/input" /bin/zsh /bin/bash)
+          sudo sqlite3 "$db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, indirect_object_identifier, flags)
+            VALUES ('kTCCServiceAccessibility', 'com.trevinlee.tilespace', 0, 2, 4, 1, 'UNUSED', 0);"
+          clients=("$PWD/build/TileSpace.app/Contents/MacOS/TileSpace" "$PWD/build/trusted" "$PWD/build/input" /bin/zsh /bin/bash)
           pid=$$
           while [ "$pid" -gt 1 ]; do
             clients+=("$(ps -o comm= -p $pid)")
@@ -41,11 +44,15 @@ jobs:
             sudo sqlite3 "$db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, indirect_object_identifier, flags)
               VALUES ('kTCCServiceAccessibility', '$c', 1, 2, 4, 1, 'UNUSED', 0);"
           done
+          printf 'Screen Recording is granted to:\n'
+          sudo sqlite3 "$db" "SELECT '  ' || client FROM access WHERE service = 'kTCCServiceScreenCapture' AND auth_value = 2;"
       - name: Integration test
         run: Tests/Integration/run.sh
-      - name: Screenshot on failure
+      - name: Screenshot and app log on failure
         if: failure()
-        run: screencapture -x screen.png
+        run: |
+          screencapture -x screen.png
+          cat build/app.log || true
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

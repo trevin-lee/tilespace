@@ -32,13 +32,25 @@ public func managedSpaces() -> [DisplaySpaces] {
 // The desktop(s) a window belongs to (ManagedSpaceIDs), whether or not it's showing.
 public func spaces(of windowID: Int) -> [Int] { spacesForWindows(conn, 7, [windowID] as CFArray) as? [Int] ?? [] }
 
-// Press the "Switch to Desktop n" shortcut (n counts across all displays, MacBook first):
-// Ctrl+1..9, Ctrl+0 = 10, Ctrl+Option+1..6 = 11..16. Blocks until the switch has settled.
-public func switchTo(_ n: Int) {
+// The "Switch to Desktop n" shortcut (n counts across all displays, MacBook first):
+// Ctrl+1..9, Ctrl+0 = 10, Ctrl+Option+1..6 = 11..16. macOS has none past 16.
+public let maxDesktopShortcut = 16
+
+func desktopShortcut(_ n: Int) -> (key: CGKeyCode, flags: CGEventFlags)? {
     let digit: [CGKeyCode] = [29, 18, 19, 20, 21, 23, 22, 26, 28, 25]   // 0-9
-    let (key, flags): (CGKeyCode, CGEventFlags) =
-        n <= 9 ? (digit[n], .maskControl) : n == 10 ? (digit[0], .maskControl)
-               : (digit[n - 10], [.maskControl, .maskAlternate])
+    switch n {
+    case 1...9: return (digit[n], .maskControl)
+    case 10: return (digit[0], .maskControl)
+    case 11...maxDesktopShortcut: return (digit[n - 10], [.maskControl, .maskAlternate])
+    default: return nil
+    }
+}
+
+// Press the shortcut for desktop n. Blocks until the switch has settled.
+public func switchTo(_ n: Int) throws {
+    guard let (key, flags) = desktopShortcut(n) else {
+        throw TileSpaceError("macOS only has shortcuts for the first \(maxDesktopShortcut) desktops")
+    }
     for down in [true, false] {
         let e = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: down)!
         e.flags = flags

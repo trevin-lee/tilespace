@@ -18,7 +18,7 @@ public enum Tool: String, CaseIterable {
 
     static let windowArg: [String: Any] = [
         "type": "string",
-        "description": "A window id from list_windows (e.g. \"4144\"), or text matched case-insensitively against \"<app> <title>\" (first match wins). Only windows on a desktop that's showing can be matched.",
+        "description": "A window id from list_windows (e.g. \"4144\"), or text matched case-insensitively against \"<app> <title>\" (windows on a showing desktop first, frontmost first). The window has to be on a desktop that's showing: one marked * in list_windows.",
     ]
 
     var definition: [String: Any] {
@@ -26,7 +26,7 @@ public enum Tool: String, CaseIterable {
         case .listWindows:
             return [
                 "name": rawValue, "title": "List windows",
-                "description": "Every titled window on every desktop (Space), one per line: display and desktop number, window id, app, frame (x,y widthxheight, top-left origin), title.",
+                "description": "Every window on every desktop (Space), one per line, by display and desktop, frontmost first: display and desktop number, window id, app, frame (x,y widthxheight, top-left origin), title. * after the desktop number means that desktop is showing; only those windows can be snapped or moved. Windows on desktops that aren't showing have no title.",
                 "inputSchema": ["type": "object", "properties": [String: Any]()],
                 "annotations": ["readOnlyHint": true],
             ]
@@ -54,14 +54,14 @@ public enum Tool: String, CaseIterable {
         case .moveWindowToDesktop:
             return [
                 "name": rawValue, "title": "Move a window to another desktop",
-                "description": "Move a window to desktop N (from 1, as in list_desktops) on its own display, or on another display if `display` is given. Needs a second display to park the window on, and macOS's \"Switch to Desktop N\" shortcuts turned on. The screen visibly switches desktops for a moment, and it takes a couple of seconds.",
+                "description": "Move a window to desktop N (from 1, as in list_desktops) on its own display, or on another display if `display` is given. Moving between desktops of one display needs a second display to park the window on meanwhile. Needs macOS's \"Switch to Desktop N\" shortcuts turned on, and only reaches the first 16 desktops counting across displays. The screen visibly switches desktops, then switches back unless `follow` is true; it takes a couple of seconds.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
                         "window": Tool.windowArg,
                         "desktop": ["type": "integer", "minimum": 1],
                         "display": ["type": "string", "description": "Part of a display's name, e.g. \"built-in\". Leave out for the window's own display."],
-                        "follow": ["type": "boolean", "description": "Stay on the target desktop afterwards instead of switching back. Default false."],
+                        "follow": ["type": "boolean", "description": "Leave the target desktop showing afterwards instead of switching back. Default false."],
                     ],
                     "required": ["window", "desktop"],
                 ],
