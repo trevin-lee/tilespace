@@ -33,16 +33,16 @@ public struct Win: Equatable {
 // desktops that are showing; the rest have no title (unless the app does have Screen Recording).
 //
 // Apps keep invisible windows around too (closed to the menu bar, or helper processes'), and
-// with no titles to go by, they have to be told apart some other way. On a showing desktop,
-// a real window is one Accessibility knows about (or, if the app doesn't answer, one that's
-// on screen). On other desktops nothing can tell, so only regular apps' windows are listed.
+// with no titles to go by, they have to be told apart some other way. On a showing desktop, a
+// real window is one that's on screen, or one Accessibility knows about (a hidden app's windows
+// are off screen). On other desktops nothing can tell, so only regular apps' windows are listed.
 public func allWindows() -> [Win] {
     let displays = managedSpaces()
     var desktopOf: [Int: (display: DisplaySpaces, index: Int)] = [:]
     for d in displays { for (i, s) in d.spaces.enumerated() { desktopOf[s] = (d, i + 1) } }
     var names: [String: String] = [:]
     for d in displays { names[d.uuid] = displayName(d.uuid) }
-    var axTitles: [pid_t: [Int: String]?] = [:]   // nil for an app that didn't answer
+    var axTitles: [pid_t: [Int: String]] = [:]
     var regular: [pid_t: Bool] = [:]
 
     let info = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
@@ -58,11 +58,10 @@ public func allWindows() -> [Win] {
         let at = shown ?? first
         var title = w[kCGWindowName as String] as? String ?? ""
         if shown != nil {
-            if axTitles[pid] == nil { axTitles[pid] = .some(windowTitles(of: pid)) }
-            if let titles = axTitles[pid]! {
-                guard let t = titles[id] else { return nil }
-                if title.isEmpty { title = t }
-            } else if w[kCGWindowIsOnscreen as String] as? Bool != true { return nil }
+            if axTitles[pid] == nil { axTitles[pid] = windowTitles(of: pid) }
+            let known = axTitles[pid]?[id]
+            if known == nil && w[kCGWindowIsOnscreen as String] as? Bool != true { return nil }
+            if title.isEmpty { title = known ?? "" }
         } else {
             if regular[pid] == nil { regular[pid] = NSRunningApplication(processIdentifier: pid)?.activationPolicy == .regular }
             if regular[pid] != true { return nil }
@@ -74,13 +73,13 @@ public func allWindows() -> [Win] {
 }
 
 // An app's window titles by window id, for its windows on desktops that are showing ("" for
-// an untitled one); nil if the app doesn't answer.
-func windowTitles(of pid: pid_t) -> [Int: String]? {
+// an untitled one). Empty if the app doesn't answer, or while the screen is locked.
+func windowTitles(of pid: pid_t) -> [Int: String] {
     let app = AXUIElementCreateApplication(pid)
     AXUIElementSetMessagingTimeout(app, 1)   // don't let one hung app stall the list for long
     var v: CFTypeRef?
     guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &v) == .success,
-          let els = v as? [AXUIElement] else { return nil }
+          let els = v as? [AXUIElement] else { return [:] }
     var out: [Int: String] = [:]
     for el in els {
         guard let id = windowID(of: el) else { continue }
