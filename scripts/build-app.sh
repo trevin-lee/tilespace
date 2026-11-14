@@ -1,7 +1,8 @@
 #!/bin/zsh
 # Build TileSpace.app (and the tilespace command) into build/.
 #   scripts/build-app.sh            build
-#   scripts/build-app.sh --install  also copy the app to ~/Applications and tilespace to ~/.local/bin
+#   scripts/build-app.sh --install  also copy the app to ~/Applications and tilespace to ~/.local/bin,
+#                                   replacing (and restarting) any copy already there
 #
 # Signs with your Apple Development certificate (override with SIGN_IDENTITY) so the
 # Accessibility permission survives rebuilds; an ad-hoc signature would need it granted again
@@ -43,11 +44,15 @@ codesign --force --sign "${identity:--}" build/tilespace
 echo "built $app (signed by ${identity:-ad hoc})"
 
 if [[ ${1:-} == --install ]]; then
-    pkill -x TileSpace || true
+    pkill -x TileSpace && while pgrep -x TileSpace >/dev/null; do sleep 0.1; done
     mkdir -p ~/Applications ~/.local/bin
     rm -rf ~/Applications/TileSpace.app
     cp -R $app ~/Applications/
     cp build/tilespace ~/.local/bin/tilespace
     open ~/Applications/TileSpace.app
     echo "installed ~/Applications/TileSpace.app and ~/.local/bin/tilespace"
+    if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+        echo "~/.local/bin isn't on your PATH; to run tilespace by name, add it:"
+        echo "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc"
+    fi
 fi
