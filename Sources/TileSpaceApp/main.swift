@@ -1,6 +1,6 @@
 // TileSpace: a menu-bar app for arranging windows, and the core that the `tilespace` command and
-// agents talk to through its MCP server. For now, Rectangle-style snapping by keyboard and by
-// dragging to screen edges, and moving windows between desktops.
+// agents talk to through its MCP server: Rectangle-style snapping by keyboard and by dragging to
+// screen edges (each can be turned off in the menu), and moving windows between desktops.
 import AppKit
 import ApplicationServices
 import Carbon
@@ -15,17 +15,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var tools = Tools(snapper: snapper)
     var failed: [SnapAction] = []   // shortcuts that couldn't be registered
     let rectangle = "com.knollsoft.Rectangle"
+    let defaults = UserDefaults.standard
 
     // menu sections, in order
     let groups: [[SnapAction]] = [
         [.leftHalf, .rightHalf, .topHalf, .bottomHalf],
         [.topLeft, .topRight, .bottomLeft, .bottomRight],
         [.firstThird, .centerThird, .lastThird, .firstTwoThirds, .centerTwoThirds, .lastTwoThirds],
+        [.firstFourth, .lastThreeFourths],
         [.maximize, .maximizeHeight, .center, .larger, .smaller, .restore],
         [.previousDisplay, .nextDisplay],
     ]
 
     func applicationDidFinishLaunching(_ n: Notification) {
+        defaults.register(defaults: ["shortcutsOn": true, "dragSnapOn": true])
         tools.start()
         // Launch at Login is on by default, so the MCP server is always there; turning it off in
         // the menu sticks.
@@ -37,7 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.menu = NSMenu()
         item.menu!.delegate = self
         // Rectangle gets the same key presses and drags, so both would snap (and the second snap
-        // counts as a repeat). Leave snapping to it while it runs.
+        // counts as a repeat). Leave shortcuts and drag snapping to it while it runs.
         let ws = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
             ws.addObserver(forName: name, object: nil, queue: .main) { [unowned self] n in
@@ -60,7 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dragSnapper.stop()
         failed = []
         guard !rectangleRunning else { return }
-        dragSnapper.start()
+        if defaults.bool(forKey: "dragSnapOn") { dragSnapper.start() }
+        guard defaults.bool(forKey: "shortcutsOn") else { return }
         for (action, s) in shortcuts.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             if !hotkeys.register(s, { [unowned self] in snapFocused(action) }) {
                 failed.append(action)
@@ -81,7 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(.separator())
         }
         if rectangleRunning {
-            menu.addItem(withTitle: "Snapping is off while Rectangle runs", action: nil, keyEquivalent: "")
+            menu.addItem(withTitle: "Shortcuts and drag snapping are off while Rectangle runs", action: nil, keyEquivalent: "")
             menu.addItem(withTitle: "Quit Rectangle", action: #selector(quitRectangle), keyEquivalent: "").target = self
             menu.addItem(.separator())
         } else if !failed.isEmpty {
@@ -100,6 +104,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             menu.addItem(.separator())
         }
+        for (title, key) in [("Keyboard Shortcuts", "shortcutsOn"), ("Snap by Dragging to Screen Edges", "dragSnapOn")] {
+            let mi = menu.addItem(withTitle: title, action: #selector(toggleSetting), keyEquivalent: "")
+            mi.target = self
+            mi.representedObject = key
+            mi.state = defaults.bool(forKey: key) ? .on : .off
+        }
+        menu.addItem(.separator())
         menu.addItem(withTitle: "MCP Server: \(tools.status)", action: nil, keyEquivalent: "")
         menu.addItem(withTitle: "Copy MCP Server URL", action: #selector(copyURL), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Add to Claude Code", action: #selector(addToClaudeCode), keyEquivalent: "").target = self
@@ -144,6 +155,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func openAccessibility() {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+    }
+
+    @objc func toggleSetting(_ mi: NSMenuItem) {
+        guard let key = mi.representedObject as? String else { return }
+        defaults.set(!defaults.bool(forKey: key), forKey: key)
+        updateShortcuts()
     }
 
     @objc func toggleLogin() {
