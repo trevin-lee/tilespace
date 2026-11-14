@@ -130,23 +130,34 @@ public final class MCPServer {
     private func encode(_ v: Any) -> Data { (try? JSONSerialization.data(withJSONObject: v, options: [.sortedKeys])) ?? Data() }
 }
 
-// Register the server with Claude Code (user scope, so every project gets it) by running
-// `claude mcp add` in a login shell, where `claude` is on the PATH much as in Terminal (plus
-// the usual install folders, in case only .zshrc adds them).
+// Register the server with Claude Code (user scope, so every project gets it), or remove it,
+// by running `claude mcp` in a login shell, where `claude` is on the PATH much as in Terminal
+// (plus the usual install folders, in case only .zshrc adds them).
 public func addToClaudeCodeConfig() -> (ok: Bool, output: String) {
+    let (status, out) = claudeMCP("add --scope user --transport http tilespace \(serverURL)")
+    if out.contains("already exists") { return (true, "TileSpace is already set up in Claude Code") }
+    return (status == 0, status == 0 ? "added TileSpace to Claude Code (user scope)" : out)
+}
+
+public func removeFromClaudeCodeConfig() -> (ok: Bool, output: String) {
+    let (status, out) = claudeMCP("remove --scope user tilespace")
+    if out.contains("No MCP server named") { return (true, "TileSpace isn't set up in Claude Code") }
+    return (status == 0, status == 0 ? "removed TileSpace from Claude Code" : out)
+}
+
+private func claudeMCP(_ args: String) -> (status: Int32, output: String) {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-    p.arguments = ["-lc", "PATH=\"$PATH:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin\" claude mcp add --scope user --transport http tilespace \(serverURL)"]
+    p.arguments = ["-lc", "PATH=\"$PATH:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin\" claude mcp \(args)"]
     let pipe = Pipe()
     p.standardOutput = pipe
     p.standardError = pipe
-    do { try p.run() } catch { return (false, "\(error)") }
+    do { try p.run() } catch { return (-1, "\(error)") }
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
     p.waitUntilExit()
-    let out = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-    if out.contains("already exists") { return (true, "TileSpace is already set up in Claude Code") }
+    let out = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
     if p.terminationStatus == 127 || out.contains("command not found") {
-        return (false, "Claude Code's `claude` command isn't installed, or isn't on your shell's PATH. Add this MCP server by hand: \(serverURL)")
+        return (127, "Claude Code's `claude` command isn't installed, or isn't on your shell's PATH. Use this MCP server URL by hand: \(serverURL)")
     }
-    return (p.terminationStatus == 0, out)
+    return (p.terminationStatus, out)
 }
