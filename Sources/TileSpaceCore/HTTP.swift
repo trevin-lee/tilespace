@@ -1,4 +1,4 @@
-// A minimal HTTP/1.1 server on the loopback interface, for the MCP endpoint. Only what MCP
+// A minimal HTTP/1.1 server on 127.0.0.1, for the MCP endpoint. Only what MCP
 // clients need: POST with a Content-Length body, keep-alive, one request at a time per
 // connection.
 import Foundation
@@ -50,10 +50,11 @@ func parseRequest(_ data: Data) -> ParseResult {
 
 // Why a request should be turned away, if it should. Only local, non-browser clients get in:
 // a web page can reach 127.0.0.1 too, but it can't hide its Origin header, and a Host check
-// stops DNS rebinding (a page whose own hostname resolves to 127.0.0.1).
+// stops DNS rebinding (a page whose own hostname resolves to 127.0.0.1). The server only
+// listens on 127.0.0.1, so those are the only Host values a local client sends.
 func rejection(_ r: HTTPRequest, port: UInt16) -> (status: Int, message: String)? {
     guard r.path == "/mcp" else { return (404, "not found; the MCP endpoint is /mcp") }
-    let hosts = ["127.0.0.1:\(port)", "localhost:\(port)", "[::1]:\(port)"]
+    let hosts = ["127.0.0.1:\(port)", "localhost:\(port)"]
     guard let host = r.headers["host"], hosts.contains(host.lowercased()) else { return (403, "unexpected Host header") }
     if r.headers["origin"] != nil { return (403, "browser requests aren't allowed") }
     guard r.method == "POST" else { return (405, "use POST") }
@@ -91,10 +92,11 @@ public final class LocalServer {
     // `ready` is called on the main queue: nil once listening, or why it couldn't.
     public func start(ready: @escaping (String?) -> Void) {
         let params = NWParameters.tcp
-        params.requiredInterfaceType = .loopback   // never reachable from the network
+        // bound to 127.0.0.1 itself, so it's never reachable from the network
+        params.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: NWEndpoint.Port(rawValue: port)!)
         params.allowLocalEndpointReuse = true
         do {
-            let l = try NWListener(using: params, on: NWEndpoint.Port(rawValue: port)!)
+            let l = try NWListener(using: params)
             l.stateUpdateHandler = { state in
                 switch state {
                 case .ready: DispatchQueue.main.async { ready(nil) }
