@@ -3,18 +3,52 @@ import XCTest
 @testable import TileSpaceCore
 
 final class DesktopShortcutTests: XCTestCase {
-    func testCoversDesktops1To16() {
-        XCTAssertEqual(desktopShortcut(1)?.key, 18)                     // Ctrl+1
-        XCTAssertEqual(desktopShortcut(1)?.flags, .maskControl)
-        XCTAssertEqual(desktopShortcut(10)?.key, 29)                    // Ctrl+0
-        XCTAssertEqual(desktopShortcut(11)?.key, 18)                    // Ctrl+Option+1
-        XCTAssertEqual(desktopShortcut(11)?.flags, [.maskControl, .maskAlternate])
-        XCTAssertEqual(desktopShortcut(16)?.key, 22)                    // Ctrl+Option+6
+    func shortcut(_ n: Int, _ hotKeys: [String: Any]? = nil) -> KeyCombo? { desktopShortcut(n, hotKeys: hotKeys) }
+    // an entry of com.apple.symbolichotkeys' AppleSymbolicHotKeys
+    func hotKey(_ enabled: Bool, key: Int = 18, flags: Int = 262_144) -> [String: Any] {
+        ["enabled": enabled, "value": ["parameters": [65535, key, flags], "type": "standard"]]
+    }
+
+    func testDefaultsCoverDesktops1To16() {
+        XCTAssertEqual(shortcut(1), KeyCombo(key: 18, flags: .maskControl))                      // Ctrl+1
+        XCTAssertEqual(shortcut(10), KeyCombo(key: 29, flags: .maskControl))                     // Ctrl+0
+        XCTAssertEqual(shortcut(11), KeyCombo(key: 18, flags: [.maskControl, .maskAlternate]))   // Ctrl+Option+1
+        XCTAssertEqual(shortcut(16)?.key, 22)                                                    // Ctrl+Option+6
+        XCTAssertEqual(shortcut(3, ["118": hotKey(true)]), KeyCombo(key: 20, flags: .maskControl), "only desktop 1 is set")
     }
 
     func testHasNoneOutside1To16() {
         // 17-19 used to press Ctrl+Option+7-9, and 20 and up read past the end of the key table
-        for n in [0, 17, 19, 20, 30] { XCTAssertNil(desktopShortcut(n), "desktop \(n)") }
+        for n in [0, 17, 19, 20, 30] { XCTAssertNil(shortcut(n), "desktop \(n)") }
+    }
+
+    func testPressesTheKeysTheUserSet() {
+        // "Switch to Desktop 3" (hot key 120) moved to Cmd+Shift+F3
+        XCTAssertEqual(shortcut(3, ["120": hotKey(true, key: 99, flags: 1_179_648 | 8_388_608)]),
+                       KeyCombo(key: 99, flags: [.maskCommand, .maskShift, .maskSecondaryFn]))
+        // Ctrl+Option+1 for desktop 11 (hot key 128), as macOS stores it
+        XCTAssertEqual(shortcut(11, ["128": hotKey(true, flags: 786_432)]), KeyCombo(key: 18, flags: [.maskControl, .maskAlternate]))
+    }
+
+    func testOffOrWithoutAKeyIsNone() {
+        XCTAssertNil(shortcut(3, ["120": hotKey(false)]))
+        XCTAssertNil(shortcut(3, ["120": ["enabled": false]]))
+        XCTAssertNil(shortcut(3, ["120": hotKey(true, key: 65535, flags: 0)]))
+        XCTAssertEqual(shortcut(3, ["120": ["enabled": true]])?.key, 20, "on, with no keys stored: the default")
+    }
+
+    func testAMoveChecksItsShortcutsFirst() throws {
+        let plan = MovePlan(display: "M", park: "O", target: 3, switchTo: 3, switchBack: 1)
+        XCTAssertNoThrow(try checkShortcuts(plan, hotKeys: nil))
+        XCTAssertThrowsError(try checkShortcuts(plan, hotKeys: ["120": hotKey(false)])) {
+            XCTAssertTrue("\($0)".hasPrefix("\"Switch to Desktop 3\" is off. Turn it on in System Settings"), "\($0)")
+        }
+        XCTAssertThrowsError(try checkShortcuts(plan, hotKeys: ["118": hotKey(false)])) {
+            XCTAssertTrue("\($0)".contains("\"Switch to Desktop 1\" is off"), "\($0)")
+            XCTAssertTrue("\($0)".contains("--follow"), "the way back is the only problem: \($0)")
+        }
+        let follow = MovePlan(display: "M", park: "O", target: 3, switchTo: 3, switchBack: nil)
+        XCTAssertNoThrow(try checkShortcuts(follow, hotKeys: ["118": hotKey(false)]))
     }
 }
 

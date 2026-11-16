@@ -32,30 +32,64 @@ public func managedSpaces() -> [DisplaySpaces] {
 // The desktop(s) a window belongs to (ManagedSpaceIDs), whether or not it's showing.
 public func spaces(of windowID: Int) -> [Int] { spacesForWindows(conn, 7, [windowID] as CFArray) as? [Int] ?? [] }
 
-// The "Switch to Desktop n" shortcut (n counts across all displays, MacBook first):
-// Ctrl+1..9, Ctrl+0 = 10, Ctrl+Option+1..6 = 11..16. macOS has none past 16.
+// The "Switch to Desktop n" shortcuts (n counts across all displays, MacBook first). macOS has
+// them for the first 16 desktops only, as symbolic hot keys 118-133. Each can be turned off or
+// rebound in System Settings; out of the box they're Ctrl+1..9, Ctrl+0 = 10 and
+// Ctrl+Option+1..6 = 11..16.
 public let maxDesktopShortcut = 16
 
-func desktopShortcut(_ n: Int) -> (key: CGKeyCode, flags: CGEventFlags)? {
-    let digit: [CGKeyCode] = [29, 18, 19, 20, 21, 23, 22, 26, 28, 25]   // 0-9
-    switch n {
-    case 1...9: return (digit[n], .maskControl)
-    case 10: return (digit[0], .maskControl)
-    case 11...maxDesktopShortcut: return (digit[n - 10], [.maskControl, .maskAlternate])
-    default: return nil
+struct KeyCombo: Equatable {
+    let key: CGKeyCode
+    let flags: CGEventFlags
+}
+
+// The user's symbolic hot keys (what System Settings > Keyboard > Keyboard Shortcuts shows).
+func symbolicHotKeys() -> [String: Any]? {
+    let app = "com.apple.symbolichotkeys" as CFString
+    CFPreferencesAppSynchronize(app)   // the app runs for days: don't keep a stale copy
+    return CFPreferencesCopyAppValue("AppleSymbolicHotKeys" as CFString, app) as? [String: Any]
+}
+
+// The keys that switch to desktop n, as the user has them set in `hotKeys`. macOS's default
+// when they've never been changed, nil when the shortcut is off or n has none.
+func desktopShortcut(_ n: Int, hotKeys: [String: Any]?) -> KeyCombo? {
+    guard (1...maxDesktopShortcut).contains(n) else { return nil }
+    let entry = hotKeys?["\(117 + n)"] as? [String: Any]
+    if (entry?["enabled"] as? NSNumber)?.boolValue == false { return nil }
+    // parameters: (character or 65535, key code or 65535 for none, modifier flags)
+    guard let p = (entry?["value"] as? [String: Any])?["parameters"] as? [Int], p.count == 3 else {
+        let digit: [CGKeyCode] = [29, 18, 19, 20, 21, 23, 22, 26, 28, 25]   // 0-9
+        return n <= 10 ? KeyCombo(key: digit[n % 10], flags: .maskControl)
+                       : KeyCombo(key: digit[n - 10], flags: [.maskControl, .maskAlternate])
     }
+    guard (0..<0xFFFF).contains(p[1]) else { return nil }   // on, but with no key
+    // the device-independent modifier bits are the same in NSEvent and CGEvent flags
+    return KeyCombo(key: CGKeyCode(p[1]), flags: CGEventFlags(rawValue: UInt64(p[2]) & 0xFE_0000))
 }
 
 // Press the shortcut for desktop n. Blocks until the switch has settled.
 public func switchTo(_ n: Int) throws {
-    guard let (key, flags) = desktopShortcut(n) else {
+    guard (1...maxDesktopShortcut).contains(n) else {
         throw TileSpaceError("macOS only has shortcuts for the first \(maxDesktopShortcut) desktops")
     }
+    guard let combo = desktopShortcut(n, hotKeys: symbolicHotKeys()) else { throw shortcutOff(n) }
     for down in [true, false] {
-        let e = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: down)!
-        e.flags = flags
+        let e = CGEvent(keyboardEventSource: nil, virtualKey: combo.key, keyDown: down)!
+        e.flags = combo.flags
         e.post(tap: .cghidEventTap)
         usleep(40_000)
     }
     usleep(800_000)
+}
+
+func shortcutOff(_ n: Int, _ more: String = "") -> TileSpaceError {
+    TileSpaceError("\"Switch to Desktop \(n)\" is off. Turn it on in System Settings > Keyboard > Keyboard Shortcuts > Mission Control\(more).")
+}
+
+// Check that the shortcuts a move presses are on, before anything moves.
+func checkShortcuts(_ plan: MovePlan, hotKeys: [String: Any]?) throws {
+    if let n = plan.switchTo, desktopShortcut(n, hotKeys: hotKeys) == nil { throw shortcutOff(n) }
+    if let n = plan.switchBack, desktopShortcut(n, hotKeys: hotKeys) == nil {
+        throw shortcutOff(n, ", or use --follow to stay on the target desktop instead of switching back")
+    }
 }

@@ -111,7 +111,7 @@ func planMove(from home: String, desktop: Int, to target: Int, display: String?,
 // window on another display, switch its own display to the target desktop, and move it back
 // to exactly where it was. To another display: show the target desktop there and move the
 // window over. Either way it switches back afterwards unless `follow`. Presses the "Switch to
-// Desktop N" shortcuts, so it blocks for a couple of seconds.
+// Desktop N" shortcuts (as the user has them set), so it blocks for a couple of seconds.
 public func moveWindow(_ query: String, toDesktop target: Int, display: String? = nil, follow: Bool = false) throws -> String {
     guard target >= 1 else { throw TileSpaceError("desktop must be a number starting at 1") }
     let w = try findWindow(query)
@@ -120,6 +120,7 @@ public func moveWindow(_ query: String, toDesktop target: Int, display: String? 
                                   displays: displays, screenCount: NSScreen.screens.count, name: displayName)
     else { return "\(w.label) is already on desktop \(target)" }
     let wasShowing = displays.first { $0.uuid == plan.display }?.current   // the desktop to switch back to
+    try checkShortcuts(plan, hotKeys: symbolicHotKeys())
     guard let el = axWindow(w) else { throw TileSpaceError("can't reach \(w.app)'s window through Accessibility") }
     let destName = displayName(plan.display)
 
@@ -160,6 +161,6 @@ private func show(_ plan: MovePlan) throws {
     guard let n = plan.switchTo else { return }
     try switchTo(n)
     guard isShowing(plan.target, on: plan.display) else {
-        throw TileSpaceError("macOS didn't switch desktops. Turn on \"Switch to Desktop \(n)\" in System Settings > Keyboard > Keyboard Shortcuts > Mission Control.")
+        throw TileSpaceError("macOS didn't switch desktops. Check that \"Switch to Desktop \(n)\" is on in System Settings > Keyboard > Keyboard Shortcuts > Mission Control.")
     }
 }
