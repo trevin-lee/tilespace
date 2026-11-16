@@ -94,6 +94,10 @@ Esc cancels. Dragging a snapped window away gives it back its size from before.
 | Top-left or top-right corner | First fourth, last three fourths |
 | Bottom-left corner, bottom edge, bottom-right corner | First, center, last third |
 
+Some windows have a minimum or a fixed size. Snapped to a spot that's too small for it, such a
+window keeps its own size and stays on the display, against the right or bottom edge if the
+spot is there.
+
 The menu has every action, and switches to turn off Keyboard Shortcuts or Snap by Dragging
 to Screen Edges.
 

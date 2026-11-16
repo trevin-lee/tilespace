@@ -51,12 +51,14 @@ final class Snapper {
         }
         // the last snap only counts if the window is still where it put it
         let untouched = rec.map { close($0.frame, f) } ?? false
-        guard let r = snap(action, window: f, last: untouched ? rec!.last : nil, screens: screens()) else {
+        let displays = screens()
+        guard let r = snap(action, window: f, last: untouched ? rec!.last : nil, screens: displays) else {
             throw TileSpaceError("can't \(action.title.lowercased()) this window")
         }
-        setFrame(el, r.rect)
-        // remember where it actually went: apps can round the size (Terminal snaps to rows)
-        records[id] = Record(last: LastSnap(pressed: action, result: r.result), frame: frame(of: el) ?? r.rect,
+        // remember where it actually went: apps can round the size (Terminal snaps to rows), or
+        // keep a bigger one, and then the window is moved to fit on the display
+        let went = settle(at: r.rect, screens: displays, set: { setFrame(el, $0) }, read: { frame(of: el) })
+        records[id] = Record(last: LastSnap(pressed: action, result: r.result), frame: went,
                              restore: untouched ? rec!.restore : f)
         return r
     }
@@ -71,8 +73,8 @@ final class Snapper {
 
     // Snap a window dropped on a snap area; Restore will put it back at `restore`.
     func drop(_ el: AXUIElement, id: Int, on t: DropTarget, restore: CGRect) {
-        setFrame(el, t.rect)
-        records[id] = Record(last: LastSnap(pressed: t.action, result: t.action), frame: frame(of: el) ?? t.rect, restore: restore)
+        let went = settle(at: t.rect, screens: screens(), set: { setFrame(el, $0) }, read: { frame(of: el) })
+        records[id] = Record(last: LastSnap(pressed: t.action, result: t.action), frame: went, restore: restore)
     }
 
     private func close(_ a: CGRect, _ b: CGRect) -> Bool {

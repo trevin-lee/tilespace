@@ -94,6 +94,104 @@ final class SnapTests: XCTestCase {
     }
 }
 
+// A window as an app with size limits keeps it: it goes where it's put, at the nearest size the
+// app allows.
+final class LimitedWindow {
+    var frame: CGRect
+    let minSize: CGSize, maxSize: CGSize
+    var sets = 0
+
+    init(_ frame: CGRect, min: CGSize = .zero, max: CGSize = CGSize(width: 1e6, height: 1e6)) {
+        self.frame = frame; minSize = min; maxSize = max
+    }
+
+    func set(_ r: CGRect) {
+        sets += 1
+        frame = CGRect(x: r.minX, y: r.minY, width: min(max(r.width, minSize.width), maxSize.width),
+                       height: min(max(r.height, minSize.height), maxSize.height))
+    }
+
+    // snap it the way the app does: work out the frame, set it, and settle the window there
+    @discardableResult
+    func snap(_ action: SnapAction, last: LastSnap? = nil) -> SnapResult {
+        let r = TileSpaceCore.snap(action, window: frame, last: last, screens: both)!
+        put(at: r.rect)
+        return r
+    }
+
+    func put(at asked: CGRect) {
+        frame = settle(at: asked, screens: both, set: set, read: { self.frame })
+    }
+}
+
+// Windows that don't take the size a snap asks for: System Settings, chat and music apps...
+final class SizeLimitTests: XCTestCase {
+    let floating = CGRect(x: 300, y: 200, width: 1300, height: 800)   // on the MacBook
+
+    func testAWindowTooWideForTheRightHalfStaysOnTheDisplay() {
+        let w = LimitedWindow(floating, min: CGSize(width: 1000, height: 300))
+        w.snap(.rightHalf)
+        XCTAssertEqual(w.frame, CGRect(x: 728, y: 33, width: 1000, height: 1084))   // not 864...1864
+    }
+
+    func testAWindowTooTallForTheBottomHalfStaysOnTheDisplay() {
+        let w = LimitedWindow(floating, min: CGSize(width: 300, height: 700))
+        w.snap(.bottomHalf)
+        XCTAssertEqual(w.frame, CGRect(x: 0, y: 417, width: 1728, height: 700))     // not 575...1275
+        w.snap(.bottomRight)
+        XCTAssertEqual(w.frame, CGRect(x: 864, y: 417, width: 864, height: 700))
+    }
+
+    func testRepeatingLastThirdStaysOnTheDisplayItsOn() {
+        let w = LimitedWindow(floating, min: CGSize(width: 1200, height: 300))
+        let first = w.snap(.lastThird)
+        XCTAssertEqual(w.frame, CGRect(x: 528, y: 33, width: 1200, height: 1084))   // not 1152...2352, mostly on the ultrawide
+        let second = w.snap(.lastThird, last: LastSnap(pressed: .lastThird, result: first.result))
+        XCTAssertEqual(second.result, .centerThird)
+        XCTAssertEqual(screen(for: w.frame, in: both), macbook)
+        XCTAssertEqual(w.frame.minX, 528)   // as far right as the center third gets
+    }
+
+    func testAWindowMovedToASmallerDisplayStaysOnIt() {
+        // against the ultrawide's right edge; a fourth as wide on the MacBook is under its minimum
+        let w = LimitedWindow(CGRect(x: 5648, y: 25, width: 1200, height: 1415), min: CGSize(width: 600, height: 300))
+        w.snap(.previousDisplay)
+        XCTAssertEqual(w.frame, CGRect(x: 1128, y: 33, width: 600, height: 1084))   // not 1323...1923
+    }
+
+    func testAWindowDroppedOnAnEdgeStaysOnTheDisplay() {
+        let w = LimitedWindow(floating, min: CGSize(width: 1000, height: 300))
+        let t = dropTarget(at: CGPoint(x: 1727, y: 500), window: w.frame, screens: [macbook])!
+        w.put(at: t.rect)
+        XCTAssertEqual(w.frame, CGRect(x: 728, y: 33, width: 1000, height: 1084))
+    }
+
+    func testAWindowBiggerThanTheDisplayKeepsItsTopLeftCorner() {
+        let w = LimitedWindow(floating, min: CGSize(width: 2000, height: 1200))
+        w.snap(.bottomRight)
+        XCTAssertEqual(w.frame, CGRect(x: 0, y: 33, width: 2000, height: 1200))
+    }
+
+    func testAWindowThatTakesTheSizeIsSetOnce() {
+        let w = LimitedWindow(floating)
+        w.snap(.rightHalf)
+        XCTAssertEqual(w.frame, placement(.rightHalf, in: macbook.visible))
+        XCTAssertEqual(w.sets, 1)
+        // one that comes out smaller (Terminal rounds to rows) stays where it was put
+        let rows = LimitedWindow(floating, max: CGSize(width: 860, height: 1075))
+        rows.snap(.rightHalf)
+        XCTAssertEqual(rows.frame, CGRect(x: 864, y: 33, width: 860, height: 1075))
+        XCTAssertEqual(rows.sets, 1)
+    }
+
+    func testMaximizeHeightKeepsAColumnThatIsOffTheDisplay() {
+        // hanging off the MacBook's left side, and too tall for its display
+        let w = LimitedWindow(CGRect(x: -200, y: 300, width: 800, height: 600), min: CGSize(width: 300, height: 1200))
+        w.snap(.maximizeHeight)
+        XCTAssertEqual(w.frame, CGRect(x: -200, y: 33, width: 800, height: 1200))
+    }
+}
+
 final class DragSnapTests: XCTestCase {
     func testEdgesAndCorners() {
         let f = wide.frame

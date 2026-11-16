@@ -155,6 +155,32 @@ func recognize(_ window: CGRect, on s: Screen) -> SnapAction? {
     }
 }
 
+// Where a window belongs when a snap asked for `asked` and the app gave it the size `size`
+// instead: apps don't have to take a size (many windows have a minimum, some a fixed one), and
+// macOS still moves the window to where it was asked. A window too big for its spot would hang
+// off the right or the bottom of the display, or onto the next one, so slide it back until it's
+// all on the display, as Rectangle does. One bigger than the display keeps its top-left corner.
+func settled(asked: CGRect, size: CGSize, screens: [Screen]) -> CGRect {
+    var r = CGRect(origin: asked.origin, size: size)
+    guard let v = screen(for: asked, in: screens)?.visible else { return r }
+    // only along a side where the snap itself fits (Maximize Height keeps a column that's off the display)
+    if asked.minX >= v.minX, asked.maxX <= v.maxX, r.maxX > v.maxX { r.origin.x = max(v.minX, v.maxX - r.width) }
+    if asked.minY >= v.minY, asked.maxY <= v.maxY, r.maxY > v.maxY { r.origin.y = max(v.minY, v.maxY - r.height) }
+    return r
+}
+
+// Put a window at `asked` and return the frame it ends up with. `set` sets the window's frame
+// and `read` reads it back. If the app kept another size, the window is moved to where a window
+// of that size belongs (see `settled`).
+public func settle(at asked: CGRect, screens: [Screen], set: (CGRect) -> Void, read: () -> CGRect?) -> CGRect {
+    set(asked)
+    guard let got = read() else { return asked }
+    let want = settled(asked: asked, size: got.size, screens: screens)
+    guard want.origin != asked.origin else { return got }
+    set(want)
+    return read() ?? want
+}
+
 // Grow or shrink by `step` in each direction, keeping any edge that touches the display's edge
 // against it. Won't shrink below a quarter of the display.
 func resized(_ w: CGRect, by step: CGFloat, in v: CGRect) -> CGRect {

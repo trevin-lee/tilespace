@@ -2,9 +2,10 @@
 //   x y width height  screen-x y width height  visible-x y width height
 // to the file given as the first argument: its frame, then the main display's whole and
 // visible areas, all with a top-left origin like Accessibility. SIGUSR1 puts it back at
-// 800x600. Dragging anywhere in it moves it (the app moves itself, as some apps do; macOS
-// may ignore synthetic drags of a title bar). A second, newer window, "tilespace behind",
-// stays behind it.
+// 800x600. SIGUSR2 gives it a minimum size, 60% of the visible area each way, as many apps'
+// windows have, and makes it that size; SIGUSR1 lifts that again. Dragging anywhere in it moves
+// it (the app moves itself, as some apps do; macOS may ignore synthetic drags of a title bar).
+// A second, newer window, "tilespace behind", stays behind it.
 //   swiftc Tests/Integration/TestWindow.swift -o build/TestWindow && build/TestWindow /tmp/frame
 import AppKit
 
@@ -36,10 +37,41 @@ behind.orderFront(nil)
 window.makeKeyAndOrderFront(nil)
 app.activate(ignoringOtherApps: true)
 
+// With a minimum size, it takes the position it's given, but never a smaller size: it goes
+// back to the minimum, keeping its top-left corner.
+var minimum: NSSize?
+final class Limits: NSObject, NSWindowDelegate {
+    func windowDidResize(_ n: Notification) {
+        guard let m = minimum, let w = n.object as? NSWindow, w.frame.width < m.width || w.frame.height < m.height else { return }
+        var f = w.frame
+        f.size = NSSize(width: max(f.width, m.width), height: max(f.height, m.height))
+        f.origin.y = w.frame.maxY - f.height
+        w.setFrame(f, display: true)
+    }
+}
+let limits = Limits()
+window.delegate = limits
+let unlimited = window.minSize
+
 signal(SIGUSR1, SIG_IGN)
 let reset = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
-reset.setEventHandler { window.setFrame(window.frameRect(forContentRect: home), display: true) }
+reset.setEventHandler {
+    minimum = nil
+    window.minSize = unlimited
+    window.setFrame(window.frameRect(forContentRect: home), display: true)
+}
 reset.resume()
+
+signal(SIGUSR2, SIG_IGN)
+let limit = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
+limit.setEventHandler {
+    let v = NSScreen.screens[0].visibleFrame
+    let m = NSSize(width: (v.width * 0.6).rounded(), height: (v.height * 0.6).rounded())
+    minimum = m
+    window.minSize = m
+    window.setFrame(NSRect(origin: home.origin, size: m), display: true)
+}
+limit.resume()
 
 Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
     let main = NSScreen.screens[0], h = main.frame.height
