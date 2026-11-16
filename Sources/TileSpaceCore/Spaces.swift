@@ -5,8 +5,10 @@ import AppKit
 import CoreGraphics
 
 typealias ConnFn = @convention(c) () -> Int32
-typealias DisplaysFn = @convention(c) (Int32) -> CFArray
-typealias SpacesForWinFn = @convention(c) (Int32, Int32, CFArray) -> CFArray
+// The two Copy functions hand over ownership of the array they return. Swift wouldn't release a
+// plain CFArray from a C function pointer, so each call would leak one: take it as Unmanaged.
+typealias DisplaysFn = @convention(c) (Int32) -> Unmanaged<CFArray>?
+typealias SpacesForWinFn = @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
 
 let sky = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_NOW)
 let conn = unsafeBitCast(dlsym(sky, "SLSMainConnectionID"), to: ConnFn.self)()
@@ -20,7 +22,7 @@ public struct DisplaySpaces {
 
 public func managedSpaces() -> [DisplaySpaces] {
     let fn = unsafeBitCast(dlsym(sky, "SLSCopyManagedDisplaySpaces"), to: DisplaysFn.self)
-    let raw = fn(conn) as? [[String: Any]] ?? []
+    let raw = fn(conn)?.takeRetainedValue() as? [[String: Any]] ?? []
     return raw.map { d in
         let user = (d["Spaces"] as? [[String: Any]] ?? []).filter { ($0["type"] as? Int) == 0 }
         let cur = (d["Current Space"] as? [String: Any])?["ManagedSpaceID"] as? Int ?? -1
@@ -30,7 +32,9 @@ public func managedSpaces() -> [DisplaySpaces] {
 }
 
 // The desktop(s) a window belongs to (ManagedSpaceIDs), whether or not it's showing.
-public func spaces(of windowID: Int) -> [Int] { spacesForWindows(conn, 7, [windowID] as CFArray) as? [Int] ?? [] }
+public func spaces(of windowID: Int) -> [Int] {
+    spacesForWindows(conn, 7, [windowID] as CFArray)?.takeRetainedValue() as? [Int] ?? []
+}
 
 // The "Switch to Desktop n" shortcuts (n counts across all displays, MacBook first). macOS has
 // them for the first 16 desktops only, as symbolic hot keys 118-133. macOS ships them off: a

@@ -158,6 +158,32 @@ final class PlanMoveTests: XCTestCase {
     }
 }
 
+// The app runs for days, and every list, snap by name and move asks SkyLight for the desktops.
+final class SpacesMemoryTests: XCTestCase {
+    // how much the memory in use grows over `calls` calls, in bytes
+    func growth(over calls: Int, _ body: () -> Void) -> Int {
+        func inUse() -> Int { var s = malloc_statistics_t(); malloc_zone_statistics(nil, &s); return s.size_in_use }
+        for _ in 0..<50 { autoreleasepool(invoking: body) }   // whatever is set up once
+        let before = inUse()
+        for _ in 0..<calls { autoreleasepool(invoking: body) }
+        return inUse() - before
+    }
+
+    func testListingDesktopsDoesNotLeak() throws {
+        try XCTSkipIf(managedSpaces().isEmpty, "no window server to ask")
+        // each leaked copy was a few hundred bytes per desktop
+        XCTAssertLessThan(growth(over: 1000) { _ = managedSpaces() }, 1000 * 100)
+    }
+
+    func testAskingForAWindowsDesktopDoesNotLeak() throws {
+        let onScreen = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        guard let window = onScreen.compactMap({ $0[kCGWindowNumber as String] as? Int }).first(where: { !spaces(of: $0).isEmpty })
+        else { throw XCTSkip("no window on a desktop to ask about") }
+        // each leaked copy was 16 bytes
+        XCTAssertLessThan(growth(over: 20_000) { _ = spaces(of: window) }, 20_000 * 4)
+    }
+}
+
 final class WindowListTests: XCTestCase {
     func win(_ id: Int, _ app: String, _ title: String = "", display: String = "M", desktop: Int = 1, showing: Bool = true) -> Win {
         Win(id: id, pid: 1, app: app, title: title, frame: CGRect(x: 10, y: 20, width: 800, height: 600),
