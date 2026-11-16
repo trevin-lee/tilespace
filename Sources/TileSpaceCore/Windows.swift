@@ -46,7 +46,10 @@ public func allWindows() -> [Win] {
     var regular: [pid_t: Bool] = [:]
 
     let info = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
-    return info.compactMap { w in
+    // The list of every window comes in no useful order (newest first, more or less): only the
+    // list of windows on screen is front to back.
+    let onScreen = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+    let wins: [Win] = info.compactMap { w in
         guard (w[kCGWindowLayer as String] as? Int) == 0, (w[kCGWindowAlpha as String] as? Double ?? 1) > 0,
               let b = w[kCGWindowBounds as String] as? [String: Any],
               let r = CGRect(dictionaryRepresentation: b as CFDictionary), r.width >= 100, r.height >= 100,
@@ -70,6 +73,17 @@ public func allWindows() -> [Win] {
                    display: at.display.uuid, displayName: names[at.display.uuid] ?? at.display.uuid,
                    desktop: at.index, showing: shown != nil)
     }
+    return frontmostFirst(wins, onScreen: onScreen.compactMap { $0[kCGWindowNumber as String] as? Int })
+}
+
+// `wins` with the ones on screen first, in the order of `onScreen` (their ids, frontmost first).
+// The rest (hidden, or on a desktop that isn't showing) follow in the order they came.
+func frontmostFirst(_ wins: [Win], onScreen: [Int]) -> [Win] {
+    var rank: [Int: Int] = [:]
+    for (i, id) in onScreen.enumerated() where rank[id] == nil { rank[id] = i }
+    return wins.enumerated()
+        .sorted { a, b in (rank[a.element.id] ?? .max, a.offset) < (rank[b.element.id] ?? .max, b.offset) }
+        .map(\.element)
 }
 
 // An app's window titles by window id, for its windows on desktops that are showing ("" for

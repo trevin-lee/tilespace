@@ -146,4 +146,14 @@ check "Ctrl+Option+D again: center third" $(( vx + vw / 3 )) $vy $(( vw * 2 / 3 
 build/input key 51 ctrl opt           # Ctrl+Option+Delete
 check "Ctrl+Option+Delete: restore" $before
 
+echo "--- two windows of one app"
+# the test app's other window is newer, and behind it: the list is front to back, and text
+# that matches both means the one in front
+reset_window
+rows=$($tilespace windows | grep TestWindow || true)
+[[ ${${(f)rows}[1]} == *"tilespace test" && ${${(f)rows}[2]} == *"tilespace behind" ]] &&
+    pass "tilespace windows lists the window in front first" || fail "tilespace windows doesn't list the window in front first: $rows"
+$tilespace snap left-half TestWindow >/dev/null
+check "snap by app name: the window in front" $vx $vy $(( vw / 2 )) $vh
+
 exit $failed

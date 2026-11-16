@@ -3,7 +3,8 @@
 // to the file given as the first argument: its frame, then the main display's whole and
 // visible areas, all with a top-left origin like Accessibility. SIGUSR1 puts it back at
 // 800x600. Dragging anywhere in it moves it (the app moves itself, as some apps do; macOS
-// may ignore synthetic drags of a title bar).
+// may ignore synthetic drags of a title bar). A second, newer window, "tilespace behind",
+// stays behind it.
 //   swiftc Tests/Integration/TestWindow.swift -o build/TestWindow && build/TestWindow /tmp/frame
 import AppKit
 
@@ -27,6 +28,11 @@ let window = NSWindow(contentRect: home, styleMask: [.titled, .resizable, .closa
                       backing: .buffered, defer: false)
 window.title = "tilespace test"
 window.contentView = DragView()
+// opened later, so its window id is higher, but kept behind the first
+let behind = NSWindow(contentRect: NSRect(x: 60, y: 60, width: 300, height: 200), styleMask: [.titled, .resizable],
+                      backing: .buffered, defer: false)
+behind.title = "tilespace behind"
+behind.orderFront(nil)
 window.makeKeyAndOrderFront(nil)
 app.activate(ignoringOtherApps: true)
 

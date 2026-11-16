@@ -180,6 +180,21 @@ final class WindowListTests: XCTestCase {
         XCTAssertThrowsError(try findWindow("mail", in: wins)) { XCTAssertTrue("\($0)".hasPrefix("no window matches 'mail'")) }
     }
 
+    func testWindowsOnScreenComeFrontToBack() throws {
+        // as the window server lists every window: newest first, whatever is in front
+        let all = [win(53418, "agents"), win(45252, "Visual Studio Code", "back"), win(45251, "Visual Studio Code", "front"),
+                   win(900, "Notes", desktop: 2, showing: false), win(44738, "Zen", "front"), win(800, "Mail"),
+                   win(43659, "Zen", "back")]
+        // and the ones on screen, frontmost first (Mail is hidden, Notes on another desktop)
+        let wins = frontmostFirst(all, onScreen: [44738, 53418, 45251, 43659, 45252])
+        XCTAssertEqual(wins.map(\.id), [44738, 53418, 45251, 43659, 45252, 900, 800])
+        // so text that matches several windows means the one in front
+        XCTAssertEqual(try findWindow("visual studio code", in: wins).title, "front")
+        XCTAssertEqual(try findWindow("zen", in: wins).title, "front")
+        let rows = formatWindows(wins, displayOrder: ["M"]).components(separatedBy: "\n")
+        XCTAssertTrue(rows[0].hasSuffix("front") && rows[0].contains("Zen"), rows[0])
+    }
+
     func testListsByDisplayThenDesktopThenFrontToBack() {
         let wins = [win(5, "Zen", "Back", display: "O", desktop: 1), win(1, "Terminal", desktop: 2, showing: false),
                     win(2, "Zen", "Front"), win(3, "Mail", "Inbox")]
