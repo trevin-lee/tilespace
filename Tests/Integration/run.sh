@@ -181,10 +181,13 @@ $tilespace snap left-half TestWindow >/dev/null
 check "snap by app name: the window in front" $vx $vy $(( vw / 2 )) $vh
 
 echo "--- a window that won't shrink"
-# with a minimum size, 60% of the visible area each way, it's too big for a half or a corner:
-# it goes where the snap puts it, but slid back onto the display
+# with a minimum size, 60% of the visible area each way, it can't get smaller, and it's too big
+# for a half or a corner: it goes where the snap puts it, but slid back onto the display
 reset_window
 kill -USR2 $win; sleep 0.5; read_state; mw=$ww mh=$wh
+at=($wx $wy)
+$tilespace snap smaller "tilespace test" >/dev/null
+check "smaller, already at its minimum size: stays where it is" $at $mw $mh
 $tilespace snap right-half "tilespace test" >/dev/null
 check "right half, too wide for it: against the right edge" $(( vx + vw - mw )) $vy $mw $vh
 $tilespace snap bottom-right "tilespace test" >/dev/null

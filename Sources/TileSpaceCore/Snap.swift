@@ -155,13 +155,23 @@ func recognize(_ window: CGRect, on s: Screen) -> SnapAction? {
     }
 }
 
-// Where a window belongs when a snap asked for `asked` and the app gave it the size `size`
-// instead: apps don't have to take a size (many windows have a minimum, some a fixed one), and
-// macOS still moves the window to where it was asked. A window too big for its spot would hang
-// off the right or the bottom of the display, or onto the next one, so slide it back until it's
-// all on the display, as Rectangle does. One bigger than the display keeps its top-left corner.
-func settled(asked: CGRect, size: CGSize, screens: [Screen]) -> CGRect {
+// Where a window that was at `before` belongs when `action` asked for `asked` and the app gave
+// it the size `size` instead: apps don't have to take a size (many windows have a minimum, some
+// a fixed one), and macOS still moves the window to where it was asked. A window too big for its
+// spot would hang off the right or the bottom of the display, or onto the next one, so slide it
+// back until it's all on the display, as Rectangle does. One bigger than the display keeps its
+// top-left corner.
+func settled(_ action: SnapAction, asked: CGRect, from before: CGRect, size: CGSize, screens: [Screen]) -> CGRect {
     var r = CGRect(origin: asked.origin, size: size)
+    if action == .larger || action == .smaller, let v = screen(for: before, in: screens)?.visible {
+        // Larger and Smaller move a window by half of what they add or take away. One that grew
+        // or shrank less than that goes where the step it did take leaves it. For no step at
+        // all, that's where it was: otherwise each press would walk it across the display.
+        let took = CGSize(width: size.width - before.width, height: size.height - before.height)
+        r.origin = resized(before, by: took, in: v).origin
+        if took.width == 0 { r.origin.x = before.minX }
+        if took.height == 0 { r.origin.y = before.minY }
+    }
     guard let v = screen(for: asked, in: screens)?.visible else { return r }
     // only along a side where the snap itself fits (Maximize Height keeps a column that's off the display)
     if asked.minX >= v.minX, asked.maxX <= v.maxX, r.maxX > v.maxX { r.origin.x = max(v.minX, v.maxX - r.width) }
@@ -169,13 +179,14 @@ func settled(asked: CGRect, size: CGSize, screens: [Screen]) -> CGRect {
     return r
 }
 
-// Put a window at `asked` and return the frame it ends up with. `set` sets the window's frame
-// and `read` reads it back. If the app kept another size, the window is moved to where a window
-// of that size belongs (see `settled`).
-public func settle(at asked: CGRect, screens: [Screen], set: (CGRect) -> Void, read: () -> CGRect?) -> CGRect {
+// Put a window that's at `before` where `action` wants it, at `asked`, and return the frame it
+// ends up with. `set` sets the window's frame and `read` reads it back. If the app kept another
+// size, the window is moved to where a window of that size belongs (see `settled`).
+public func settle(_ action: SnapAction, at asked: CGRect, from before: CGRect, screens: [Screen],
+                   set: (CGRect) -> Void, read: () -> CGRect?) -> CGRect {
     set(asked)
     guard let got = read() else { return asked }
-    let want = settled(asked: asked, size: got.size, screens: screens)
+    let want = settled(action, asked: asked, from: before, size: got.size, screens: screens)
     guard want.origin != asked.origin else { return got }
     set(want)
     return read() ?? want
@@ -184,23 +195,29 @@ public func settle(at asked: CGRect, screens: [Screen], set: (CGRect) -> Void, r
 // Grow or shrink by `step` in each direction, keeping any edge that touches the display's edge
 // against it. Won't shrink below a quarter of the display.
 func resized(_ w: CGRect, by step: CGFloat, in v: CGRect) -> CGRect {
+    resized(w, by: CGSize(width: step, height: step), in: v)
+}
+
+// The same, by `step.width` across and `step.height` down.
+func resized(_ w: CGRect, by step: CGSize, in v: CGRect) -> CGRect {
     let near: CGFloat = 5
     let left = abs(w.minX - v.minX) <= near, right = abs(w.maxX - v.maxX) <= near
     let top = abs(w.minY - v.minY) <= near, bottom = abs(w.maxY - v.maxY) <= near
+    let shrinking = step.width < 0 || step.height < 0
     var r = w
-    if step < 0, left, right, top, bottom {
-        r = w.insetBy(dx: -step / 2, dy: -step / 2)   // maximized: shrink toward the middle
+    if shrinking, left, right, top, bottom {
+        r = w.insetBy(dx: -step.width / 2, dy: -step.height / 2)   // maximized: shrink toward the middle
     } else {
-        r.size.width += step; r.origin.x -= (step / 2).rounded(.down)
+        r.size.width += step.width; r.origin.x -= (step.width / 2).rounded(.down)
         if right { r.origin.x = v.maxX - r.width }
         if left { r.origin.x = v.minX; if right { r.size.width = v.width } }
-        r.size.height += step; r.origin.y -= (step / 2).rounded(.down)
+        r.size.height += step.height; r.origin.y -= (step.height / 2).rounded(.down)
         if bottom { r.origin.y = v.maxY - r.height }
         if top { r.origin.y = v.minY; if bottom { r.size.height = v.height } }
     }
     if r.width >= v.width { r.size.width = v.width; r.origin.x = v.minX }
     if r.height >= v.height { r.size.height = v.height; r.origin.y = v.minY }
-    if step < 0, r.width < v.width / 4 || r.height < v.height / 4 { return w }
+    if shrinking, r.width < v.width / 4 || r.height < v.height / 4 { return w }
     return r
 }
 

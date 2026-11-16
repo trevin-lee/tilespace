@@ -57,7 +57,7 @@ final class Snapper {
         }
         // remember where it actually went: apps can round the size (Terminal snaps to rows), or
         // keep a bigger one, and then the window is moved to fit on the display
-        let went = settle(at: r.rect, screens: displays, set: { setFrame(el, $0) }, read: { frame(of: el) })
+        let went = settle(action, at: r.rect, from: f, screens: displays, set: { setFrame(el, $0) }, read: { frame(of: el) })
         records[id] = Record(last: LastSnap(pressed: action, result: r.result), frame: went,
                              restore: untouched ? rec!.restore : f)
         return r
@@ -73,7 +73,8 @@ final class Snapper {
 
     // Snap a window dropped on a snap area; Restore will put it back at `restore`.
     func drop(_ el: AXUIElement, id: Int, on t: DropTarget, restore: CGRect) {
-        let went = settle(at: t.rect, screens: screens(), set: { setFrame(el, $0) }, read: { frame(of: el) })
+        let went = settle(t.action, at: t.rect, from: frame(of: el) ?? t.rect, screens: screens(),
+                          set: { setFrame(el, $0) }, read: { frame(of: el) })
         records[id] = Record(last: LastSnap(pressed: t.action, result: t.action), frame: went, restore: restore)
     }
 

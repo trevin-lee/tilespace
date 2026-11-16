@@ -115,12 +115,12 @@ final class LimitedWindow {
     @discardableResult
     func snap(_ action: SnapAction, last: LastSnap? = nil) -> SnapResult {
         let r = TileSpaceCore.snap(action, window: frame, last: last, screens: both)!
-        put(at: r.rect)
+        put(action, at: r.rect)
         return r
     }
 
-    func put(at asked: CGRect) {
-        frame = settle(at: asked, screens: both, set: set, read: { self.frame })
+    func put(_ action: SnapAction, at asked: CGRect) {
+        frame = settle(action, at: asked, from: frame, screens: both, set: set, read: { self.frame })
     }
 }
 
@@ -162,7 +162,7 @@ final class SizeLimitTests: XCTestCase {
     func testAWindowDroppedOnAnEdgeStaysOnTheDisplay() {
         let w = LimitedWindow(floating, min: CGSize(width: 1000, height: 300))
         let t = dropTarget(at: CGPoint(x: 1727, y: 500), window: w.frame, screens: [macbook])!
-        w.put(at: t.rect)
+        w.put(t.action, at: t.rect)
         XCTAssertEqual(w.frame, CGRect(x: 728, y: 33, width: 1000, height: 1084))
     }
 
@@ -182,6 +182,37 @@ final class SizeLimitTests: XCTestCase {
         rows.snap(.rightHalf)
         XCTAssertEqual(rows.frame, CGRect(x: 864, y: 33, width: 860, height: 1075))
         XCTAssertEqual(rows.sets, 1)
+    }
+
+    func testLargerAndSmallerLeaveAWindowOfAFixedSizeWhereItIs() {
+        let fixed = CGRect(x: 600, y: 400, width: 715, height: 500)
+        let w = LimitedWindow(fixed, min: fixed.size, max: fixed.size)
+        for _ in 0..<5 { w.snap(.larger) }
+        XCTAssertEqual(w.frame, fixed)   // not 15pt further up and left with each press
+        for _ in 0..<5 { w.snap(.smaller) }
+        XCTAssertEqual(w.frame, fixed)
+    }
+
+    func testSmallerLeavesAWindowAtItsMinimumSizeWhereItIs() {
+        let small = CGRect(x: 900, y: 500, width: 700, height: 500)
+        let w = LimitedWindow(small, min: small.size)
+        for _ in 0..<12 { w.snap(.smaller) }
+        XCTAssertEqual(w.frame, small)   // not walked off the display's right edge
+        // against the right edge, as a right half that's as narrow as it gets
+        let half = LimitedWindow(placement(.rightHalf, in: macbook.visible), min: CGSize(width: 864, height: 300))
+        for _ in 0..<3 { half.snap(.smaller) }
+        XCTAssertEqual(half.frame, placement(.rightHalf, in: macbook.visible))
+    }
+
+    func testAWindowThatGrowsOrShrinksPartOfTheWayKeepsItsMiddleOrItsEdge() {
+        // 10pt short of its widest: grows by that, around its middle
+        let w = LimitedWindow(CGRect(x: 600, y: 400, width: 700, height: 500), max: CGSize(width: 710, height: 1e6))
+        w.snap(.larger)
+        XCTAssertEqual(w.frame, CGRect(x: 595, y: 385, width: 710, height: 530))
+        // a right half 14pt over its narrowest: shrinks by that, still against the right edge
+        let half = LimitedWindow(placement(.rightHalf, in: macbook.visible), min: CGSize(width: 850, height: 300))
+        half.snap(.smaller)
+        XCTAssertEqual(half.frame, CGRect(x: 878, y: 33, width: 850, height: 1084))
     }
 
     func testMaximizeHeightKeepsAColumnThatIsOffTheDisplay() {
