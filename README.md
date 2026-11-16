@@ -11,7 +11,8 @@ Window management for macOS that works with SIP on and with macOS's own desktops
   synthetic title-bar drags. But moving a window onto another display puts it on whatever
   desktop that display is showing. So TileSpace parks the window on another display, switches
   its own display to the target desktop, and moves it back to its exact frame. It checks the
-  result with the read-only SkyLight call `SLSCopySpacesForWindows`.
+  result with the read-only SkyLight call `SLSCopySpacesForWindows`. Because it works through
+  another display, it needs a second display: on a Mac with only one, it can't move windows.
 - **An MCP server and a command line**, so agents and scripts can list, snap and move windows.
 
 Everything runs in one menu-bar app, TileSpace.app, which starts at login. The `tilespace`
@@ -127,8 +128,9 @@ window title, such as `zen` or `"zen github"`. Quote text that's more than one w
 
 `tilespace move` switches desktops by pressing macOS's "Switch to Desktop N" shortcuts. Turn
 them on in System Settings > Keyboard > Keyboard Shortcuts > Mission Control. macOS only has
-these shortcuts for the first 16 desktops, counting across displays. Moving a window between
-desktops of one display needs a second display to park it on. The screen switches to the
+these shortcuts for the first 16 desktops, counting across displays. Every move needs a
+second display: a move within one display parks the window on another display meanwhile, so
+with a single display (a laptop on its own) `move` can't work. The screen switches to the
 target desktop and back, unless you pass `--follow`.
 
 The command starts TileSpace.app if it isn't running. `list` and `spaces` still work as the

@@ -92,6 +92,9 @@ final class MCPTests: XCTestCase {
         let tools = (r["result"] as! [String: Any])["tools"] as! [[String: Any]]
         XCTAssertEqual(tools.map { $0["name"] as! String }, ["list_windows", "list_desktops", "snap_window", "move_window_to_desktop"])
         for t in tools { XCTAssertEqual((t["inputSchema"] as? [String: Any])?["type"] as? String, "object") }
+        // every move goes through a second display, so agents on a single-display Mac need to know
+        let move = tools.first { $0["name"] as? String == "move_window_to_desktop" }
+        XCTAssertTrue((move?["description"] as? String ?? "").contains("Every move needs a second display"))
     }
 
     func testCallsATool() {
