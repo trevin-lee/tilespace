@@ -61,3 +61,14 @@ public func unsnapFrame(_ current: CGRect, size: CGSize, cursor: CGPoint) -> CGR
     let fraction = current.width > 0 ? (cursor.x - current.minX) / current.width : 0.5
     return CGRect(x: (cursor.x - fraction * size.width).rounded(), y: current.minY, width: size.width, height: size.height)
 }
+
+// macOS 15 and later tile a window dragged to a screen edge themselves ("Drag windows to screen
+// edges to tile" and "Drag windows to menu bar to fill screen", both on unless turned off), with
+// other layouts than the snap areas above. With either on, one drag gets two previews and
+// whichever app sets the frame last wins. `read` looks a key up in com.apple.WindowManager.
+public let macOSTilingKeys = ["EnableTilingByEdgeDrag", "EnableTopTilingByEdgeDrag"]
+
+public func macOSTilesByDrag(macOSVersion major: Int, read: (String) -> Any?) -> Bool {
+    guard major >= 15 else { return false }
+    return macOSTilingKeys.contains { (read($0) as? Bool) ?? true }
+}

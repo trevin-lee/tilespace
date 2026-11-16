@@ -132,3 +132,19 @@ final class DragSnapTests: XCTestCase {
         XCTAssertEqual(r, CGRect(x: 900, y: 0, width: 800, height: 600))   // cursor 3/4 across before and after
     }
 }
+
+final class MacOSTilingTests: XCTestCase {
+    func testOnByDefaultFromMacOS15() {
+        XCTAssertTrue(macOSTilesByDrag(macOSVersion: 15) { _ in nil })
+        XCTAssertFalse(macOSTilesByDrag(macOSVersion: 14) { _ in nil })
+    }
+
+    func testEitherSettingCounts() {
+        let edgesOnly: [String: Any] = ["EnableTilingByEdgeDrag": true, "EnableTopTilingByEdgeDrag": false]
+        let topOnly: [String: Any] = ["EnableTilingByEdgeDrag": false]
+        let off: [String: Any] = ["EnableTilingByEdgeDrag": false, "EnableTopTilingByEdgeDrag": false]
+        XCTAssertTrue(macOSTilesByDrag(macOSVersion: 26) { edgesOnly[$0] })
+        XCTAssertTrue(macOSTilesByDrag(macOSVersion: 26) { topOnly[$0] })
+        XCTAssertFalse(macOSTilesByDrag(macOSVersion: 26) { off[$0] })
+    }
+}

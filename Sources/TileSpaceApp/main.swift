@@ -58,6 +58,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     var rectangleRunning: Bool { !NSRunningApplication.runningApplications(withBundleIdentifier: rectangle).isEmpty }
 
+    // macOS's own drag tiling (Desktop & Dock), read fresh so turning it off clears the notice
+    var macOSTiling: Bool {
+        let domain = "com.apple.WindowManager" as CFString
+        CFPreferencesAppSynchronize(domain)
+        return macOSTilesByDrag(macOSVersion: ProcessInfo.processInfo.operatingSystemVersion.majorVersion) {
+            CFPreferencesCopyAppValue($0 as CFString, domain)
+        }
+    }
+
     func updateShortcuts() {
         hotkeys.unregisterAll()
         dragSnapper.stop()
@@ -90,6 +99,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(.separator())
         } else if !failed.isEmpty {
             menu.addItem(withTitle: "\(failed.count) shortcuts couldn't be set up", action: nil, keyEquivalent: "")
+            menu.addItem(.separator())
+        }
+        if !rectangleRunning, defaults.bool(forKey: "dragSnapOn"), macOSTiling {
+            menu.addItem(withTitle: "macOS also tiles windows dragged to screen edges", action: nil, keyEquivalent: "")
+            menu.addItem(withTitle: "Turn Off macOS Tiling in System Settings…", action: #selector(openTilingSettings), keyEquivalent: "").target = self
             menu.addItem(.separator())
         }
         for group in groups {
@@ -155,6 +169,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func openAccessibility() {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+    }
+
+    @objc func openTilingSettings() {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Desktop-Settings.extension")!)
     }
 
     @objc func toggleSetting(_ mi: NSMenuItem) {
