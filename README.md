@@ -135,7 +135,8 @@ with a single display (a laptop on its own) `move` can't work. Each display also
 desktops: leave "Displays have separate Spaces" on (the default) in System Settings > Desktop &
 Dock. With it off, all displays share one set of desktops, `tilespace desktops` shows them as
 "All displays", and `move` can't work. The screen switches to the target desktop and back,
-unless you pass `--follow`.
+unless you pass `--follow`. If macOS doesn't switch back, the window still moves and `move`
+says which shortcut to check.
 
 The command starts TileSpace.app if it isn't running. `list` and `spaces` still work as the
 old names of `windows` and `desktops`.

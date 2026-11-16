@@ -96,7 +96,12 @@ func planMove(from home: String, desktop: Int, to target: Int, display: String?,
     }
     let showing = dest.spaces.firstIndex(of: dest.current).map { $0 + 1 }   // nil if a full-screen app is showing
     let to = showing == target ? nil : try shortcut(target)
-    let back = to == nil || follow ? nil : try showing.map(shortcut)
+    let back = to == nil || follow ? nil : try showing.map { n in
+        guard offset + n <= maxDesktopShortcut else {
+            throw TileSpaceError("\(destName) is showing desktop \(n), which is desktop \(offset + n) counting across displays, and macOS only has shortcuts for the first \(maxDesktopShortcut), so TileSpace couldn't switch back to it after the move. Use --follow to stay on desktop \(target) instead.")
+        }
+        return offset + n
+    }
     return MovePlan(display: dest.uuid, park: park?.uuid, target: dest.spaces[target - 1], switchTo: to, switchBack: back)
 }
 
@@ -110,9 +115,11 @@ func planMove(from home: String, desktop: Int, to target: Int, display: String?,
 public func moveWindow(_ query: String, toDesktop target: Int, display: String? = nil, follow: Bool = false) throws -> String {
     guard target >= 1 else { throw TileSpaceError("desktop must be a number starting at 1") }
     let w = try findWindow(query)
+    let displays = managedSpaces()
     guard let plan = try planMove(from: w.display, desktop: w.desktop, to: target, display: display, follow: follow,
-                                  displays: managedSpaces(), screenCount: NSScreen.screens.count, name: displayName)
+                                  displays: displays, screenCount: NSScreen.screens.count, name: displayName)
     else { return "\(w.label) is already on desktop \(target)" }
+    let wasShowing = displays.first { $0.uuid == plan.display }?.current   // the desktop to switch back to
     guard let el = axWindow(w) else { throw TileSpaceError("can't reach \(w.app)'s window through Accessibility") }
     let destName = displayName(plan.display)
 
@@ -132,16 +139,27 @@ public func moveWindow(_ query: String, toDesktop target: Int, display: String? 
     }
     usleep(300_000)
     let arrived = spaces(of: w.id) == [plan.target]
-    if let back = plan.switchBack { try? switchTo(back) }
-    guard arrived else { throw TileSpaceError("\(w.label) didn't land on desktop \(target)") }
-    return "moved \(w.label) to desktop \(target) on \(destName)"
+    // the window is where it belongs either way, but say so if the screen didn't come back
+    var stuck = ""
+    if let back = plan.switchBack {
+        try? switchTo(back)
+        if let wasShowing, !isShowing(wasShowing, on: plan.display) {
+            stuck = ", but macOS didn't switch back, so desktop \(target) of \(destName) is still showing. Check that \"Switch to Desktop \(back)\" is on in System Settings > Keyboard > Keyboard Shortcuts > Mission Control."
+        }
+    }
+    guard arrived else { throw TileSpaceError("\(w.label) didn't land on desktop \(target)\(stuck)") }
+    return "moved \(w.label) to desktop \(target) on \(destName)\(stuck)"
+}
+
+private func isShowing(_ space: Int, on display: String) -> Bool {
+    managedSpaces().first { $0.uuid == display }?.current == space
 }
 
 // Press the shortcut that shows the plan's target desktop, and check that macOS switched.
 private func show(_ plan: MovePlan) throws {
     guard let n = plan.switchTo else { return }
     try switchTo(n)
-    guard managedSpaces().first(where: { $0.uuid == plan.display })?.current == plan.target else {
+    guard isShowing(plan.target, on: plan.display) else {
         throw TileSpaceError("macOS didn't switch desktops. Turn on \"Switch to Desktop \(n)\" in System Settings > Keyboard > Keyboard Shortcuts > Mission Control.")
     }
 }

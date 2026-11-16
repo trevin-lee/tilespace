@@ -98,7 +98,9 @@ final class PlanMoveTests: XCTestCase {
     func testCantSwitchBackPastTheSixteenShortcuts() throws {
         let ten = DisplaySpaces(uuid: "M", spaces: Array(1...10), current: 1)
         let showing8 = DisplaySpaces(uuid: "O", spaces: Array(11...20), current: 18)   // desktop 18 overall
-        assertThrows("is desktop 18", try plan(1, to: 2, display: "odyssey", displays: [ten, showing8]))
+        // the move itself could work: say that it's the way back, and that --follow skips it
+        assertThrows("Odyssey G95NC is showing desktop 8, which is desktop 18", try plan(1, to: 2, display: "odyssey", displays: [ten, showing8]))
+        assertThrows("Use --follow to stay on desktop 2", try plan(1, to: 2, display: "odyssey", displays: [ten, showing8]))
         XCTAssertEqual(try plan(1, to: 2, display: "odyssey", follow: true, displays: [ten, showing8])?.switchTo, 12)
     }
 }
