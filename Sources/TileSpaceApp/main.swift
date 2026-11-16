@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var tools = Tools(snapper: snapper)
     var failed: [SnapAction] = []   // shortcuts that couldn't be registered
     let rectangle = "com.knollsoft.Rectangle"
+    var rectangleWatch: NSKeyValueObservation?
+    var yielding = false            // whether shortcuts and drag snapping are left to Rectangle now
     let defaults = UserDefaults.standard
 
     // menu sections, in order
@@ -40,13 +42,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.menu = NSMenu()
         item.menu!.delegate = self
         // Rectangle gets the same key presses and drags, so both would snap (and the second snap
-        // counts as a repeat). Leave shortcuts and drag snapping to it while it runs.
-        let ws = NSWorkspace.shared.notificationCenter
-        for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
-            ws.addObserver(forName: name, object: nil, queue: .main) { [unowned self] n in
-                let a = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-                if a?.bundleIdentifier == rectangle { updateShortcuts() }
-            }
+        // counts as a repeat). Leave shortcuts and drag snapping to it while it runs. It has no
+        // Dock icon, and macOS posts no launch or quit notifications for such apps, so watch
+        // the list of running apps instead.
+        rectangleWatch = NSWorkspace.shared.observe(\.runningApplications) { [unowned self] _, _ in
+            DispatchQueue.main.async { if self.rectangleRunning != self.yielding { self.updateShortcuts() } }
         }
         updateShortcuts()
         // tilespace://execute-action?name=left-half, like Rectangle's rectangle:// links
@@ -56,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
     }
 
-    var rectangleRunning: Bool { !NSRunningApplication.runningApplications(withBundleIdentifier: rectangle).isEmpty }
+    var rectangleRunning: Bool { NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == rectangle } }
 
     // macOS's own drag tiling (Desktop & Dock), read fresh so turning it off clears the notice
     var macOSTiling: Bool {
@@ -71,7 +71,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hotkeys.unregisterAll()
         dragSnapper.stop()
         failed = []
-        guard !rectangleRunning else { return }
+        yielding = rectangleRunning
+        guard !yielding else { return }
         if defaults.bool(forKey: "dragSnapOn") { dragSnapper.start() }
         guard defaults.bool(forKey: "shortcutsOn") else { return }
         for (action, s) in shortcuts.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {

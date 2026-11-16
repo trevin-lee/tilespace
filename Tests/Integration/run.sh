@@ -2,8 +2,8 @@
 # End-to-end checks on a real window: start TileSpace.app (the core, with its MCP server) the
 # way Finder does, open a test window, then snap it through the `tilespace` command (a client of
 # the app's server), by dragging it to screen edges, and with the app's shortcuts, checking where
-# it lands each time. It takes over the mouse and keyboard, so it's meant for CI (a macOS
-# runner), not a desk.
+# it lands each time. It takes over the mouse and keyboard, and starts and quits a stand-in
+# for Rectangle, so it's meant for CI (a macOS runner), not a desk.
 #
 # Needs Accessibility access for whatever runs it (on a Mac: the terminal app) and for the app.
 set -euo pipefail
@@ -19,6 +19,30 @@ import ApplicationServices
 exit(AXIsProcessTrusted() ? 0 : 1)
 EOF
 swiftc build/trusted.swift -o build/trusted
+# a stand-in for Rectangle: an app with its bundle id and, like it, no Dock icon
+rectangle=build/Rectangle.app
+rm -rf $rectangle
+mkdir -p $rectangle/Contents/MacOS
+cat > build/rectangle.swift <<'EOF'
+import AppKit
+NSApplication.shared.setActivationPolicy(.accessory)
+NSApplication.shared.run()
+EOF
+swiftc build/rectangle.swift -o $rectangle/Contents/MacOS/Rectangle
+cat > $rectangle/Contents/Info.plist <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key><string>com.knollsoft.Rectangle</string>
+    <key>CFBundleName</key><string>Rectangle</string>
+    <key>CFBundleExecutable</key><string>Rectangle</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>LSUIElement</key><true/>
+</dict>
+</plist>
+EOF
+codesign --force --sign - $rectangle
 if ! build/trusted; then
     echo "no Accessibility access: allow the app running this in System Settings > Privacy & Security > Accessibility"
     exit 1
@@ -26,7 +50,7 @@ fi
 
 state=$(mktemp)
 build/TestWindow $state & win=$!
-trap 'kill $win 2>/dev/null; pkill -x TileSpace' EXIT
+trap 'kill $win 2>/dev/null; pkill -x TileSpace; pkill -x Rectangle' EXIT
 sleep 2
 
 failed=0
@@ -155,5 +179,22 @@ rows=$($tilespace windows | grep TestWindow || true)
     pass "tilespace windows lists the window in front first" || fail "tilespace windows doesn't list the window in front first: $rows"
 $tilespace snap left-half TestWindow >/dev/null
 check "snap by app name: the window in front" $vx $vy $(( vw / 2 )) $vh
+
+echo "--- Rectangle"
+# TileSpace leaves the shortcuts to Rectangle while it runs, and has to notice Rectangle starting
+# or quitting after it did: macOS posts no launch or quit notifications for apps with no Dock icon
+reset_window
+before=($wx $wy $ww $wh)
+open -g $rectangle
+for i in {1..40}; do pgrep -x Rectangle >/dev/null && break; sleep 0.25; done
+pgrep -x Rectangle >/dev/null && pass "the stand-in for Rectangle runs" || fail "the stand-in for Rectangle didn't start"
+sleep 2
+build/input key 124 ctrl opt          # Ctrl+Option+Right
+check "Ctrl+Option+Right once Rectangle has started: left to Rectangle" $before
+pkill -x Rectangle || true
+while pgrep -x Rectangle >/dev/null; do sleep 0.1; done
+sleep 2
+build/input key 124 ctrl opt
+check "Ctrl+Option+Right once Rectangle has quit: right half" $(( vx + vw / 2 )) $vy $(( vw - vw / 2 )) $vh
 
 exit $failed
