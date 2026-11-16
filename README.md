@@ -27,8 +27,12 @@ scripts/build-app.sh --install   # ~/Applications/TileSpace.app and ~/.local/bin
 ```
 
 The app asks for Accessibility access the first time it runs. The build script signs with
-your Apple Development certificate if you have one, so the permission survives rebuilds. With
-an ad-hoc signature, you have to grant it again after every build.
+your Apple Development certificate if you have one, so the permission survives rebuilds.
+Without one it signs ad hoc, and macOS stops trusting each new build even though System
+Settings still shows TileSpace switched on. So `--install` clears that entry when it signs ad
+hoc, and the new app asks for access again. If the menu ever asks for access while System
+Settings shows it on, run `tccutil reset Accessibility com.trevinlee.tilespace`, quit and
+reopen TileSpace, and allow it again.
 
 The app turns on Launch at Login the first time it runs, so the MCP server is always there.
 You can turn that off in its menu.
@@ -51,7 +55,8 @@ Desktop & Dock, or TileSpace's Snap by Dragging to Screen Edges. While both apps
 dragging, TileSpace's menu says so and links to the setting.
 
 **To update**, pull and run `scripts/build-app.sh --install` again. It quits the running app,
-replaces it and starts the new one.
+replaces it and starts the new one. With an ad-hoc signature, allow Accessibility access again
+when the new app asks.
 
 **To uninstall**, first turn off Launch at Login in TileSpace's menu, then:
 

@@ -5,8 +5,9 @@
 #                                   replacing (and restarting) any copy already there
 #
 # Signs with your Apple Development certificate (override with SIGN_IDENTITY) so the
-# Accessibility permission survives rebuilds; an ad-hoc signature would need it granted again
-# after every build.
+# Accessibility permission survives rebuilds. An ad-hoc signature changes with every build, and
+# macOS stops trusting the app while System Settings still shows it switched on, so --install
+# clears that stale entry and the new app asks again.
 set -euo pipefail
 cd "${0:A:h}/.."
 
@@ -49,6 +50,11 @@ if [[ ${1:-} == --install ]]; then
     rm -rf ~/Applications/TileSpace.app
     cp -R $app ~/Applications/
     cp build/tilespace ~/.local/bin/tilespace
+    if [[ ${identity:--} == - ]]; then
+        tccutil reset Accessibility com.trevinlee.tilespace >/dev/null &&
+            echo "ad-hoc signed: allow Accessibility access again when TileSpace asks" ||
+            echo "couldn't reset Accessibility access; run: tccutil reset Accessibility com.trevinlee.tilespace"
+    fi
     open ~/Applications/TileSpace.app
     echo "installed ~/Applications/TileSpace.app and ~/.local/bin/tilespace"
     if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
