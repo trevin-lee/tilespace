@@ -78,6 +78,29 @@ drag_to() { read_state; build/input drag $(( wx + ww / 2 )) $(( wy + wh / 2 )) $
 pass() { echo "ok    $1"; }
 fail() { echo "FAIL  $1"; failed=1; }
 
+# snap_to <action> <window> <x> <y> <w> <h>: snap a window with the command. It has to land
+# there, and the reply has to name the action and give the frame the window has.
+snap_to() {
+    local action=$1 window=$2 label="snap $1" said; shift 2
+    [[ $window == "tilespace test" ]] || label+=" by window id $window"
+    said=$($tilespace snap $action $window 2>&1) || { fail "$label: $said"; return; }
+    check $label $@
+    replied $label $action $said
+}
+# replied <label> <action> <reply>: the reply to a snap, e.g. "left-half: 0,25 720x875", names
+# the action and gives the window's frame as it is now, give or take 2pt
+replied() {
+    read_state
+    local -a match
+    local got=($wx $wy $ww $wh) ok=0
+    if [[ $3 =~ "^$2: (-?[0-9]+),(-?[0-9]+) ([0-9]+)x([0-9]+)\$" ]]; then
+        ok=1
+        for i in 1 2 3 4; do (( match[i] - got[i] > 2 || got[i] - match[i] > 2 )) && ok=0; done
+    fi
+    if (( ok )); then pass "$1: the reply is the window's frame: $3"
+    else fail "$1: the reply should be '$2: $wx,$wy ${ww}x$wh', got: $3"; fi
+}
+
 echo "--- the app and its MCP server"
 # with `open`, the app is its own process, as when started from Finder or at login, so it has
 # only its own permissions: not the shell's (on the runner, the shell can record the screen)
@@ -119,20 +142,41 @@ expect_error "move to desktop 0" "starting at 1" move "tilespace test" 0
 expect_error "move to an unknown display" "no display matches" move "tilespace test" 2 nosuchdisplay
 expect_error "snap an unknown window" "no window matches" snap left-half "no such window"
 
+# Where each snap should put the window is worked out here, from the display's visible area: the
+# command's reply is the window's own frame, so going by it would only compare the window with
+# itself. Thirds run across, as on any landscape display (the runner's is). In this order every
+# snap moves or resizes the window, so none passes by leaving it where the last one put it.
+read_state
+t="tilespace test"
+hw=$(( vw / 2 )) hh=$(( vh / 2 ))             # the left and the top half
+t1=$(( vw / 3 )) t2=$(( vw * 2 / 3 ))         # where the first and the center third end
 # any id from the list works as the window argument
 ids=(${(s: :)${row#*\*}})
-said=$($tilespace snap left-half $ids[1])
-want=(${(s: :)${${said#*: }/,/ }/x/ })
-check "snap left-half by window id $ids[1]" $want
-
-for action in left-half right-half top-half bottom-half top-left bottom-right \
-              first-third center-third last-third first-two-thirds center-two-thirds last-two-thirds \
-              maximize smaller larger center maximize-height; do
-    # prints e.g. "left-half: 0,25 720x875"
-    said=$($tilespace snap $action "tilespace test")
-    want=(${(s: :)${${said#*: }/,/ }/x/ })
-    check "snap $action" $want
-done
+snap_to left-half $ids[1]     $vx $vy $hw $vh
+snap_to right-half $t         $(( vx + hw )) $vy $(( vw - hw )) $vh
+snap_to left-half $t          $vx $vy $hw $vh
+snap_to top-half $t           $vx $vy $vw $hh
+snap_to bottom-half $t        $vx $(( vy + hh )) $vw $(( vh - hh ))
+snap_to top-left $t           $vx $vy $hw $hh
+snap_to bottom-right $t       $(( vx + hw )) $(( vy + hh )) $(( vw - hw )) $(( vh - hh ))
+snap_to first-third $t        $vx $vy $t1 $vh
+snap_to center-third $t       $(( vx + t1 )) $vy $(( t2 - t1 )) $vh
+snap_to last-third $t         $(( vx + t2 )) $vy $(( vw - t2 )) $vh
+snap_to first-two-thirds $t   $vx $vy $t2 $vh
+snap_to center-two-thirds $t  $(( vx + vw / 6 )) $vy $(( vw * 5 / 6 - vw / 6 )) $vh
+snap_to last-two-thirds $t    $(( vx + t1 )) $vy $(( vw - t1 )) $vh
+snap_to maximize $t           $vx $vy $vw $vh
+# Smaller takes 30pt off a maximized window's width and height, half from each side; Larger
+# puts them back
+snap_to smaller $t            $(( vx + 15 )) $(( vy + 15 )) $(( vw - 30 )) $(( vh - 30 ))
+snap_to larger $t             $vx $vy $vw $vh
+# Center keeps the window's size, and Maximize Height its column: a maximized window would stay
+# put for both, so start from one that's neither centered nor full height
+reset_window
+cw=$(( rw < vw ? rw : vw )) ch=$(( rh < vh ? rh : vh ))
+cx=$(( vx + (vw - cw) / 2 ))
+snap_to center $t             $cx $(( vy + (vh - ch) / 2 )) $cw $ch
+snap_to maximize-height $t    $cx $vy $cw $vh
 
 echo "--- dragging"
 reset_window
@@ -191,8 +235,7 @@ check "smaller, already at its minimum size: stays where it is" $at $mw $mh
 said=$($tilespace snap right-half "tilespace test")
 check "right half, too wide for it: against the right edge" $(( vx + vw - mw )) $vy $mw $vh
 # the reply is the frame the window took, not the half it was asked to take
-want=(${(s: :)${${said#*: }/,/ }/x/ })
-check "the reply is the frame it took ($said)" $want
+replied "right half, too wide for it" right-half $said
 $tilespace snap bottom-right "tilespace test" >/dev/null
 check "bottom right, too big for it: in the corner" $(( vx + vw - mw )) $(( vy + vh - mh )) $mw $mh
 drag_to $(( sx + sw - 1 )) $(( sy + sh / 2 ))
