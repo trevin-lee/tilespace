@@ -37,7 +37,8 @@ final class Snapper {
     private struct Record { let last: LastSnap; let frame: CGRect; let restore: CGRect }
     private var records: [Int: Record] = [:]   // by window id
 
-    // Snap a window (the focused one if nil); returns where it put it.
+    // Snap a window (the focused one if nil); returns the action applied and the frame the
+    // window ended up with, which is its own to decide: apps can round a size or refuse it.
     @discardableResult
     func run(_ action: SnapAction, on window: AXUIElement? = nil) throws -> SnapResult {
         guard let el = window ?? focusedWindow() else { throw TileSpaceError("the frontmost app has no focused window") }
@@ -47,7 +48,7 @@ final class Snapper {
             guard let rec else { throw TileSpaceError("that window hasn't been snapped, so there's nothing to restore") }
             setFrame(el, rec.restore)
             records[id] = nil
-            return SnapResult(rect: rec.restore, result: .restore)
+            return SnapResult(rect: frame(of: el) ?? rec.restore, result: .restore)
         }
         // the last snap only counts if the window is still where it put it
         let untouched = rec.map { close($0.frame, f) } ?? false
@@ -55,12 +56,20 @@ final class Snapper {
         guard let r = snap(action, window: f, last: untouched ? rec!.last : nil, screens: displays) else {
             throw TileSpaceError("can't \(action.title.lowercased()) this window")
         }
-        // remember where it actually went: apps can round the size (Terminal snaps to rows), or
-        // keep a bigger one, and then the window is moved to fit on the display
-        let went = settle(action, at: r.rect, from: f, screens: displays, set: { setFrame(el, $0) }, read: { frame(of: el) })
+        // where it actually went: apps can round the size (Terminal snaps to rows), or keep a
+        // bigger one, and then the window is moved to fit on the display
+        var went = settle(action, at: r.rect, from: f, screens: displays, set: { setFrame(el, $0) }, read: { frame(of: el) })
+        func stuck() -> Bool { !took(action, asked: r.rect, from: f, now: went, screens: displays) }
+        if stuck() {
+            usleep(150_000)   // an app can be slow to apply a frame: look again before saying so
+            went = frame(of: el) ?? went
+            if stuck() {
+                throw TileSpaceError("that window didn't move: it's still at \(describe(went)). A full-screen window can't be snapped.")
+            }
+        }
         records[id] = Record(last: LastSnap(pressed: action, result: r.result), frame: went,
                              restore: untouched ? rec!.restore : f)
-        return r
+        return SnapResult(rect: went, result: r.result)
     }
 
     // The frame from before a window's first snap, if it's still where its last snap put it.

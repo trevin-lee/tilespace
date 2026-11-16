@@ -215,6 +215,40 @@ final class SizeLimitTests: XCTestCase {
         XCTAssertEqual(half.frame, CGRect(x: 878, y: 33, width: 850, height: 1084))
     }
 
+    // whether the app counts a snap as taken, as it reports to the command line and to agents
+    func took(_ w: LimitedWindow, _ action: SnapAction) -> Bool {
+        let before = w.frame
+        let r = w.snap(action)
+        return TileSpaceCore.took(action, asked: r.rect, from: before, now: w.frame, screens: both)
+    }
+
+    func testAWindowThatStaysPutWhenItShouldMoveDidNotTakeTheSnap() {
+        // a full-screen window: nothing sets its frame
+        let fullScreen = LimitedWindow(macbook.frame, min: macbook.frame.size, max: macbook.frame.size)
+        let before = fullScreen.frame
+        for action in [SnapAction.leftHalf, .rightHalf, .lastThird, .center, .nextDisplay] {
+            let asked = snap(action, window: before, last: nil, screens: both)!.rect
+            let now = settle(action, at: asked, from: before, screens: both, set: { _ in }, read: { before })
+            XCTAssertEqual(now, before)
+            XCTAssertFalse(TileSpaceCore.took(action, asked: asked, from: before, now: now, screens: both), action.cliName)
+        }
+    }
+
+    func testAWindowThatKeepsItsSizeWhereItBelongsTookTheSnap() {
+        // System Settings, 715pt wide whatever it's asked: maximized is its top-left corner
+        let size = CGSize(width: 715, height: 1084)
+        let settings = LimitedWindow(CGRect(x: 300, y: 33, width: 715, height: 1084), min: size, max: size)
+        XCTAssertTrue(took(settings, .maximize))
+        XCTAssertEqual(settings.frame, CGRect(x: 0, y: 33, width: 715, height: 1084))   // what the reply says, not 1728 wide
+        XCTAssertTrue(took(settings, .maximize), "already there: nothing to move")
+        XCTAssertTrue(took(settings, .leftHalf), "as far left as it goes")
+        XCTAssertTrue(took(settings, .larger), "can't grow, and stays where it is")
+        XCTAssertEqual(settings.frame, CGRect(x: 0, y: 33, width: 715, height: 1084))
+        // and a window that's free to take any frame, in place already
+        let free = LimitedWindow(placement(.leftHalf, in: macbook.visible))
+        XCTAssertTrue(TileSpaceCore.took(.leftHalf, asked: free.frame, from: free.frame, now: free.frame, screens: [macbook]))
+    }
+
     func testMaximizeHeightKeepsAColumnThatIsOffTheDisplay() {
         // hanging off the MacBook's left side, and too tall for its display
         let w = LimitedWindow(CGRect(x: -200, y: 300, width: 800, height: 600), min: CGSize(width: 300, height: 1200))

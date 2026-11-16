@@ -43,7 +43,7 @@ final class Tools {
                     el = e
                 }
                 let r = try snapper.run(action, on: el)
-                return ToolResult("\(r.result.cliName): \(Int(r.rect.minX)),\(Int(r.rect.minY)) \(Int(r.rect.width))x\(Int(r.rect.height))")
+                return ToolResult("\(r.result.cliName): \(describe(r.rect))")
             case .moveWindowToDesktop:
                 guard let q = window(args) else { throw TileSpaceError("which window? pass `window`") }
                 guard let desktop = (args["desktop"] as? NSNumber)?.intValue ?? (args["desktop"] as? String).flatMap(Int.init) else {

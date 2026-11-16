@@ -17,6 +17,9 @@ public func listWindows() -> String {
     return out.isEmpty ? "no windows" : out
 }
 
+// A frame as the window list and the reply to a snap print it: "0,25 720x875"
+public func describe(_ r: CGRect) -> String { "\(Int(r.minX)),\(Int(r.minY)) \(Int(r.width))x\(Int(r.height))" }
+
 func formatWindows(_ wins: [Win], displayOrder: [String]) -> String {
     var rank: [String: Int] = [:]
     for (i, uuid) in displayOrder.enumerated() where rank[uuid] == nil { rank[uuid] = i }
@@ -26,9 +29,8 @@ func formatWindows(_ wins: [Win], displayOrder: [String]) -> String {
         }
         .map { _, w in
             let at = "\(w.displayName.prefix(10)) \(w.desktop)\(w.showing ? "*" : "")"
-            let frame = "\(Int(w.frame.minX)),\(Int(w.frame.minY)) \(Int(w.frame.width))x\(Int(w.frame.height))"
             let row = String(format: "%-13@ %6d  %-18@ %-22@ %@", at as NSString, w.id, String(w.app.prefix(18)) as NSString,
-                             frame as NSString, w.title as NSString)
+                             describe(w.frame) as NSString, w.title as NSString)
             return row.replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression)
         }
         .joined(separator: "\n")

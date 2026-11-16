@@ -63,7 +63,7 @@ public struct LastSnap: Equatable {
 }
 
 public struct SnapResult: Equatable {
-    public let rect: CGRect
+    public let rect: CGRect         // from `snap`, the frame to ask for; from the app, the one the window took
     public let result: SnapAction   // can differ from the key pressed (repeats, other display)
     public init(rect: CGRect, result: SnapAction) { self.rect = rect; self.result = result }
 }
@@ -190,6 +190,16 @@ public func settle(_ action: SnapAction, at asked: CGRect, from before: CGRect, 
     guard want.origin != asked.origin else { return got }
     set(want)
     return read() ?? want
+}
+
+// Whether a window that was at `before` took a snap that asked for `asked`, going by its frame
+// now. Keeping its own size counts: then it's where a window of that size belongs, even if
+// that's where it was. Staying put when it should be somewhere else doesn't: a full-screen
+// window, or one the app won't let be moved.
+public func took(_ action: SnapAction, asked: CGRect, from before: CGRect, now: CGRect, screens: [Screen]) -> Bool {
+    guard now == before else { return true }
+    let want = settled(action, asked: asked, from: before, size: now.size, screens: screens)
+    return abs(want.minX - now.minX) <= 2 && abs(want.minY - now.minY) <= 2
 }
 
 // Grow or shrink by `step` in each direction, keeping any edge that touches the display's edge

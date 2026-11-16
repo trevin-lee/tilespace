@@ -188,8 +188,11 @@ kill -USR2 $win; sleep 0.5; read_state; mw=$ww mh=$wh
 at=($wx $wy)
 $tilespace snap smaller "tilespace test" >/dev/null
 check "smaller, already at its minimum size: stays where it is" $at $mw $mh
-$tilespace snap right-half "tilespace test" >/dev/null
+said=$($tilespace snap right-half "tilespace test")
 check "right half, too wide for it: against the right edge" $(( vx + vw - mw )) $vy $mw $vh
+# the reply is the frame the window took, not the half it was asked to take
+want=(${(s: :)${${said#*: }/,/ }/x/ })
+check "the reply is the frame it took ($said)" $want
 $tilespace snap bottom-right "tilespace test" >/dev/null
 check "bottom right, too big for it: in the corner" $(( vx + vw - mw )) $(( vy + vh - mh )) $mw $mh
 drag_to $(( sx + sw - 1 )) $(( sy + sh / 2 ))

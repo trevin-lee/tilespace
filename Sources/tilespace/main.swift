@@ -4,7 +4,8 @@
 //
 //   tilespace windows                     list_windows: every window, with its desktop and id
 //   tilespace desktops                    list_desktops: desktops per display (* = showing)
-//   tilespace snap <action> [<window>]    snap_window: e.g. left-half (no window = the frontmost app's)
+//   tilespace snap <action> [<window>]    snap_window: e.g. left-half (no window = the frontmost app's);
+//                                         prints the frame the window ended up with
 //   tilespace move <window> <desktop> [<display>] [--follow]
 //                                         move_window_to_desktop: desktop is from 1, on the
 //                                         window's display or on <display> ("odyssey", "built-in");
@@ -30,7 +31,8 @@ let usage = """
 
     <window> is a window id from `tilespace windows`, or text matched against the app name and
     window title. It has to be on a desktop that's showing (* in the list). A move switches
-    desktops and back; --follow stays on the target desktop.
+    desktops and back; --follow stays on the target desktop. A snap prints the action applied
+    and the frame the window ended up with: a window with a minimum or fixed size keeps it.
 
     actions: \(SnapAction.allCases.map(\.cliName).joined(separator: " "))
     """

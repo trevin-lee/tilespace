@@ -40,7 +40,7 @@ public enum Tool: String, CaseIterable {
         case .snapWindow:
             return [
                 "name": rawValue, "title": "Snap a window",
-                "description": "Snap a window into place on its display, like Rectangle. Repeating left-half or right-half moves the window to the next display over; repeating first-third or last-third cycles through the thirds; restore puts it back where it was before it was first snapped. Returns the action applied and the frame it set.",
+                "description": "Snap a window into place on its display, like Rectangle. Repeating left-half or right-half moves the window to the next display over; repeating first-third or last-third cycles through the thirds; restore puts it back where it was before it was first snapped. Returns the action applied and the frame the window ended up with (x,y widthxheight). A window with a minimum or fixed size keeps that size and is placed to stay on its display, so the frame can differ from the spot asked for. Fails if the window didn't move at all, as a full-screen window doesn't.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [

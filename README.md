@@ -131,6 +131,11 @@ access, which TileSpace doesn't ask for. Windows of full-screen apps aren't list
 window title, such as `zen` or `"zen github"`. Quote text that's more than one word in
 `move`. Leave out the window in `snap` to act on the frontmost app's window.
 
+`tilespace snap` prints the action applied and the frame the window ended up with, such as
+`left-half: 0,33 864x1084`. That's the window's real frame, so for a window that kept its own
+size it differs from the spot you asked for. If the window didn't move at all, as a
+full-screen window doesn't, `snap` fails and says so.
+
 `tilespace move` switches desktops by pressing macOS's "Switch to Desktop N" shortcuts. macOS
 ships them off: turn them on in System Settings > Keyboard > Keyboard Shortcuts > Mission
 Control. They can have any keys: TileSpace presses the ones you've set. If a shortcut a move
@@ -164,7 +169,7 @@ tool:
 |---|---|---|
 | `list_windows` | `tilespace windows` | Every window on every desktop, with its id, app, frame and title |
 | `list_desktops` | `tilespace desktops` | The desktops on each display, and which one is showing |
-| `snap_window` | `tilespace snap` | Any snap action, on a window or the focused one |
+| `snap_window` | `tilespace snap` | Any snap action, on a window or the focused one; returns the frame the window ended up with |
 | `move_window_to_desktop` | `tilespace move` | Move a window to desktop N, on its own display or another |
 
 The server listens only on 127.0.0.1, so nothing else on the network can reach it. Any
