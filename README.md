@@ -127,13 +127,13 @@ access, which TileSpace doesn't ask for. Windows of full-screen apps aren't list
 window title, such as `zen` or `"zen github"`. Quote text that's more than one word in
 `move`. Leave out the window in `snap` to act on the frontmost app's window.
 
-`tilespace move` switches desktops by pressing macOS's "Switch to Desktop N" shortcuts. Turn
-them on in System Settings > Keyboard > Keyboard Shortcuts > Mission Control. They can have
-any keys: TileSpace presses the ones you've set. If a shortcut a move needs is off, `move`
-says which one before anything moves. macOS only has these shortcuts for the first 16
-desktops, counting across displays. Every move needs a
-second display: a move within one display parks the window on another display meanwhile, so
-with a single display (a laptop on its own) `move` can't work. Each display also needs its own
+`tilespace move` switches desktops by pressing macOS's "Switch to Desktop N" shortcuts. macOS
+ships them off: turn them on in System Settings > Keyboard > Keyboard Shortcuts > Mission
+Control. They can have any keys: TileSpace presses the ones you've set. If a shortcut a move
+needs is off, `move` says which one before anything moves. macOS only has these shortcuts
+for the first 16 desktops, counting across displays. Every move needs a second display: a
+move within one display parks the window on another display meanwhile, so with a single
+display (a laptop on its own) `move` can't work. Each display also needs its own
 desktops: leave "Displays have separate Spaces" on (the default) in System Settings > Desktop &
 Dock. With it off, all displays share one set of desktops, `tilespace desktops` shows them as
 "All displays", and `move` can't work. The screen switches to the target desktop and back,

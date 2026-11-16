@@ -33,8 +33,9 @@ public func managedSpaces() -> [DisplaySpaces] {
 public func spaces(of windowID: Int) -> [Int] { spacesForWindows(conn, 7, [windowID] as CFArray) as? [Int] ?? [] }
 
 // The "Switch to Desktop n" shortcuts (n counts across all displays, MacBook first). macOS has
-// them for the first 16 desktops only, as symbolic hot keys 118-133. Each can be turned off or
-// rebound in System Settings; out of the box they're Ctrl+1..9, Ctrl+0 = 10 and
+// them for the first 16 desktops only, as symbolic hot keys 118-133. macOS ships them off: a
+// new account's com.apple.symbolichotkeys has no entry for them until the user turns one on in
+// System Settings. Their keys can be changed there; macOS offers Ctrl+1..9, Ctrl+0 = 10 and
 // Ctrl+Option+1..6 = 11..16.
 public let maxDesktopShortcut = 16
 
@@ -50,14 +51,14 @@ func symbolicHotKeys() -> [String: Any]? {
     return CFPreferencesCopyAppValue("AppleSymbolicHotKeys" as CFString, app) as? [String: Any]
 }
 
-// The keys that switch to desktop n, as the user has them set in `hotKeys`. macOS's default
-// when they've never been changed, nil when the shortcut is off or n has none.
+// The keys that switch to desktop n, as the user has them set in `hotKeys`: macOS's keys when
+// it's on with none stored, nil when it's off, has never been turned on (no entry), or n has none.
 func desktopShortcut(_ n: Int, hotKeys: [String: Any]?) -> KeyCombo? {
-    guard (1...maxDesktopShortcut).contains(n) else { return nil }
-    let entry = hotKeys?["\(117 + n)"] as? [String: Any]
-    if (entry?["enabled"] as? NSNumber)?.boolValue == false { return nil }
+    guard (1...maxDesktopShortcut).contains(n),
+          let entry = hotKeys?["\(117 + n)"] as? [String: Any],
+          (entry["enabled"] as? NSNumber)?.boolValue == true else { return nil }
     // parameters: (character or 65535, key code or 65535 for none, modifier flags)
-    guard let p = (entry?["value"] as? [String: Any])?["parameters"] as? [Int], p.count == 3 else {
+    guard let p = (entry["value"] as? [String: Any])?["parameters"] as? [Int], p.count == 3 else {
         let digit: [CGKeyCode] = [29, 18, 19, 20, 21, 23, 22, 26, 28, 25]   // 0-9
         return n <= 10 ? KeyCombo(key: digit[n % 10], flags: .maskControl)
                        : KeyCombo(key: digit[n - 10], flags: [.maskControl, .maskAlternate])

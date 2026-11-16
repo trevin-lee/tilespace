@@ -9,17 +9,27 @@ final class DesktopShortcutTests: XCTestCase {
         ["enabled": enabled, "value": ["parameters": [65535, key, flags], "type": "standard"]]
     }
 
-    func testDefaultsCoverDesktops1To16() {
-        XCTAssertEqual(shortcut(1), KeyCombo(key: 18, flags: .maskControl))                      // Ctrl+1
-        XCTAssertEqual(shortcut(10), KeyCombo(key: 29, flags: .maskControl))                     // Ctrl+0
-        XCTAssertEqual(shortcut(11), KeyCombo(key: 18, flags: [.maskControl, .maskAlternate]))   // Ctrl+Option+1
-        XCTAssertEqual(shortcut(16)?.key, 22)                                                    // Ctrl+Option+6
-        XCTAssertEqual(shortcut(3, ["118": hotKey(true)]), KeyCombo(key: 20, flags: .maskControl), "only desktop 1 is set")
+    // on, with no keys stored: macOS's keys
+    func on(_ n: Int) -> KeyCombo? { shortcut(n, ["\(117 + n)": ["enabled": true]]) }
+
+    func testOnWithNoKeysStoredPressesMacOSKeysForDesktops1To16() {
+        XCTAssertEqual(on(1), KeyCombo(key: 18, flags: .maskControl))                      // Ctrl+1
+        XCTAssertEqual(on(10), KeyCombo(key: 29, flags: .maskControl))                     // Ctrl+0
+        XCTAssertEqual(on(11), KeyCombo(key: 18, flags: [.maskControl, .maskAlternate]))   // Ctrl+Option+1
+        XCTAssertEqual(on(16)?.key, 22)                                                    // Ctrl+Option+6
+    }
+
+    func testNeverTurnedOnIsOff() {
+        // a new account has no entry for 118-133: macOS ships "Switch to Desktop N" off
+        for n in [1, 2, 10, 16] { XCTAssertNil(shortcut(n), "desktop \(n), no hot keys at all") }
+        XCTAssertNil(shortcut(3, [:]))
+        XCTAssertNil(shortcut(3, ["118": hotKey(true)]), "only desktop 1 is on")
+        XCTAssertNil(shortcut(3, ["120": ["value": ["parameters": [65535, 20, 262_144]]]]), "keys, but never turned on")
     }
 
     func testHasNoneOutside1To16() {
         // 17-19 used to press Ctrl+Option+7-9, and 20 and up read past the end of the key table
-        for n in [0, 17, 19, 20, 30] { XCTAssertNil(shortcut(n), "desktop \(n)") }
+        for n in [0, 17, 19, 20, 30] { XCTAssertNil(shortcut(n, ["\(117 + n)": hotKey(true)]), "desktop \(n)") }
     }
 
     func testPressesTheKeysTheUserSet() {
@@ -39,16 +49,25 @@ final class DesktopShortcutTests: XCTestCase {
 
     func testAMoveChecksItsShortcutsFirst() throws {
         let plan = MovePlan(display: "M", park: "O", target: 3, switchTo: 3, switchBack: 1)
-        XCTAssertNoThrow(try checkShortcuts(plan, hotKeys: nil))
-        XCTAssertThrowsError(try checkShortcuts(plan, hotKeys: ["120": hotKey(false)])) {
+        let bothOn = ["118": hotKey(true), "120": hotKey(true, key: 20)]
+        XCTAssertNoThrow(try checkShortcuts(plan, hotKeys: bothOn))
+        // a new account, which has never turned them on, is told before anything moves
+        for fresh in [nil, [:]] as [[String: Any]?] {
+            XCTAssertThrowsError(try checkShortcuts(plan, hotKeys: fresh)) {
+                XCTAssertTrue("\($0)".hasPrefix("\"Switch to Desktop 3\" is off. Turn it on in System Settings"), "\($0)")
+            }
+        }
+        XCTAssertThrowsError(try checkShortcuts(plan, hotKeys: ["118": hotKey(true), "120": hotKey(false)])) {
             XCTAssertTrue("\($0)".hasPrefix("\"Switch to Desktop 3\" is off. Turn it on in System Settings"), "\($0)")
         }
-        XCTAssertThrowsError(try checkShortcuts(plan, hotKeys: ["118": hotKey(false)])) {
-            XCTAssertTrue("\($0)".contains("\"Switch to Desktop 1\" is off"), "\($0)")
-            XCTAssertTrue("\($0)".contains("--follow"), "the way back is the only problem: \($0)")
+        for back in [["120": hotKey(true, key: 20), "118": hotKey(false)], ["120": hotKey(true, key: 20)]] {
+            XCTAssertThrowsError(try checkShortcuts(plan, hotKeys: back)) {
+                XCTAssertTrue("\($0)".contains("\"Switch to Desktop 1\" is off"), "\($0)")
+                XCTAssertTrue("\($0)".contains("--follow"), "the way back is the only problem: \($0)")
+            }
         }
         let follow = MovePlan(display: "M", park: "O", target: 3, switchTo: 3, switchBack: nil)
-        XCTAssertNoThrow(try checkShortcuts(follow, hotKeys: ["118": hotKey(false)]))
+        XCTAssertNoThrow(try checkShortcuts(follow, hotKeys: ["120": hotKey(true, key: 20)]))
     }
 }
 

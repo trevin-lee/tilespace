@@ -24,7 +24,8 @@ let usage = """
            tilespace snap <action> [<window>]   snap a window, or the frontmost app's
            tilespace move <window> <desktop> [<display>] [--follow]
                                                 move a window to desktop N (from 1) on its display, or on <display>;
-                                                needs a second display, and "Displays have separate Spaces" on
+                                                needs a second display, "Displays have separate Spaces" on, and
+                                                macOS's "Switch to Desktop N" shortcuts on (they ship off)
            tilespace mcp [install | uninstall]  the MCP server's address; add it to or remove it from Claude Code
 
     <window> is a window id from `tilespace windows`, or text matched against the app name and
