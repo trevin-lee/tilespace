@@ -20,9 +20,14 @@ public struct DisplaySpaces {
     public let current: Int    // the one showing
 }
 
+// What the two Copy functions return, owned, so that it's freed once it's let go.
+func copyDisplaySpaces() -> CFArray? {
+    unsafeBitCast(dlsym(sky, "SLSCopyManagedDisplaySpaces"), to: DisplaysFn.self)(conn)?.takeRetainedValue()
+}
+func copySpaces(of windowID: Int) -> CFArray? { spacesForWindows(conn, 7, [windowID] as CFArray)?.takeRetainedValue() }
+
 public func managedSpaces() -> [DisplaySpaces] {
-    let fn = unsafeBitCast(dlsym(sky, "SLSCopyManagedDisplaySpaces"), to: DisplaysFn.self)
-    let raw = fn(conn)?.takeRetainedValue() as? [[String: Any]] ?? []
+    let raw = copyDisplaySpaces() as? [[String: Any]] ?? []
     return raw.map { d in
         let user = (d["Spaces"] as? [[String: Any]] ?? []).filter { ($0["type"] as? Int) == 0 }
         let cur = (d["Current Space"] as? [String: Any])?["ManagedSpaceID"] as? Int ?? -1
@@ -32,9 +37,7 @@ public func managedSpaces() -> [DisplaySpaces] {
 }
 
 // The desktop(s) a window belongs to (ManagedSpaceIDs), whether or not it's showing.
-public func spaces(of windowID: Int) -> [Int] {
-    spacesForWindows(conn, 7, [windowID] as CFArray)?.takeRetainedValue() as? [Int] ?? []
-}
+public func spaces(of windowID: Int) -> [Int] { copySpaces(of: windowID) as? [Int] ?? [] }
 
 // The "Switch to Desktop n" shortcuts (n counts across all displays, MacBook first). macOS has
 // them for the first 16 desktops only, as symbolic hot keys 118-133. macOS ships them off: a
