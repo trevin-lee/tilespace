@@ -15,9 +15,13 @@ public func displayUUID(containing p: CGPoint) -> String? {
 }
 
 public func displayName(_ uuid: String) -> String {
+    // with "Displays have separate Spaces" off, SkyLight reports every display as one, "Main"
+    if uuid == sharedSpacesDisplay { return "All displays" }
     for s in NSScreen.screens where displayUUID(s.displayID) == uuid { return s.localizedName }
     return uuid
 }
+
+let sharedSpacesDisplay = "Main"
 
 public func displayBounds(_ uuid: String) -> CGRect? {
     var ids = [CGDirectDisplayID](repeating: 0, count: 16); var n: UInt32 = 0

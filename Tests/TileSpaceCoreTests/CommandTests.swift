@@ -24,9 +24,10 @@ final class PlanMoveTests: XCTestCase {
     func name(_ uuid: String) -> String { uuid == "M" ? "Built-in Retina Display" : uuid == "O" ? "Odyssey G95NC" : uuid }
 
     func plan(_ desktop: Int, to target: Int, display: String? = nil, follow: Bool = false,
-              from home: String = "M", displays: [DisplaySpaces]? = nil) throws -> MovePlan? {
-        try planMove(from: home, desktop: desktop, to: target, display: display, follow: follow,
-                     displays: displays ?? [mac, odyssey], name: name)
+              from home: String = "M", displays: [DisplaySpaces]? = nil, screenCount: Int? = nil) throws -> MovePlan? {
+        let displays = displays ?? [mac, odyssey]
+        return try planMove(from: home, desktop: desktop, to: target, display: display, follow: follow,
+                            displays: displays, screenCount: screenCount ?? displays.count, name: name)
     }
 
     func assertThrows(_ message: String, _ f: @autoclosure () throws -> MovePlan?, line: UInt = #line) {
@@ -63,6 +64,15 @@ final class PlanMoveTests: XCTestCase {
 
     func testOneDisplayHasNowhereToPark() {
         assertThrows("needs a second display", try plan(1, to: 2, displays: [mac]))
+    }
+
+    func testSharedSpacesNameTheSettingInsteadOfASecondDisplay() {
+        // "Displays have separate Spaces" off: two displays, but SkyLight reports one
+        let shared = DisplaySpaces(uuid: "Main", spaces: [1, 2, 3], current: 1)
+        for display in [nil, "built-in", "odyssey"] {
+            assertThrows("Displays have separate Spaces", try plan(1, to: 2, display: display, from: "Main", displays: [shared], screenCount: 2))
+        }
+        XCTAssertEqual(displayName("Main"), "All displays")
     }
 
     func testDesktopOutOfRange() {

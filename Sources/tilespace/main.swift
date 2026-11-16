@@ -8,7 +8,8 @@
 //   tilespace move <window> <desktop> [<display>] [--follow]
 //                                         move_window_to_desktop: desktop is from 1, on the
 //                                         window's display or on <display> ("odyssey", "built-in");
-//                                         needs a second display
+//                                         needs a second display, and "Displays have
+//                                         separate Spaces" on
 //   tilespace mcp [install | uninstall]   the MCP server's address, or add it to / remove it from Claude Code
 //
 // `list` and `spaces` still work, as the old names of `windows` and `desktops`.
@@ -23,7 +24,7 @@ let usage = """
            tilespace snap <action> [<window>]   snap a window, or the frontmost app's
            tilespace move <window> <desktop> [<display>] [--follow]
                                                 move a window to desktop N (from 1) on its display, or on <display>;
-                                                needs a second display
+                                                needs a second display, and "Displays have separate Spaces" on
            tilespace mcp [install | uninstall]  the MCP server's address; add it to or remove it from Claude Code
 
     <window> is a window id from `tilespace windows`, or text matched against the app name and

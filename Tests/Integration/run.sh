@@ -72,6 +72,7 @@ tools=$(curl -s -X POST $url -H 'Content-Type: application/json' -d '{"jsonrpc":
 echo "--- tilespace (through the app)"
 $tilespace --help | grep -q "usage: tilespace" && pass "tilespace --help" || fail "tilespace --help"
 $tilespace --help | grep -q "needs a second display" && pass "tilespace --help says move needs a second display" || fail "tilespace --help doesn't say move needs a second display"
+$tilespace --help | grep -q "Displays have separate Spaces" && pass "tilespace --help says move needs separate Spaces per display" || fail "tilespace --help doesn't say move needs separate Spaces per display"
 $tilespace bogus 2>/dev/null && fail "tilespace bogus should fail" || pass "tilespace bogus fails"
 # the window's title comes from Accessibility: the app has no Screen Recording access
 windows=$($tilespace windows) || fail "tilespace windows: $windows"

@@ -58,9 +58,14 @@ struct MovePlan: Equatable {
 
 // Plan moving a window that's on desktop `desktop` of display `home` (showing) to desktop
 // `target` of the display matching `display`, or of its own display. nil if it's there already.
+// `screenCount` is how many displays are connected: with "Displays have separate Spaces" off,
+// they all share one set of desktops and SkyLight reports them as one display.
 func planMove(from home: String, desktop: Int, to target: Int, display: String?, follow: Bool,
-              displays: [DisplaySpaces], name: (String) -> String) throws -> MovePlan? {
+              displays: [DisplaySpaces], screenCount: Int, name: (String) -> String) throws -> MovePlan? {
     guard target >= 1 else { throw TileSpaceError("desktop must be a number starting at 1") }
+    if displays.count == 1 && screenCount > 1 {
+        throw TileSpaceError("your displays share one set of desktops, so there's no other display to move the window through. Turn on \"Displays have separate Spaces\" in System Settings > Desktop & Dock, then log out and back in.")
+    }
     let dest: DisplaySpaces
     if let display {
         guard let d = displays.first(where: { name($0.uuid).lowercased().contains(display.lowercased()) }) else {
@@ -106,7 +111,7 @@ public func moveWindow(_ query: String, toDesktop target: Int, display: String? 
     guard target >= 1 else { throw TileSpaceError("desktop must be a number starting at 1") }
     let w = try findWindow(query)
     guard let plan = try planMove(from: w.display, desktop: w.desktop, to: target, display: display, follow: follow,
-                                  displays: managedSpaces(), name: displayName)
+                                  displays: managedSpaces(), screenCount: NSScreen.screens.count, name: displayName)
     else { return "\(w.label) is already on desktop \(target)" }
     guard let el = axWindow(w) else { throw TileSpaceError("can't reach \(w.app)'s window through Accessibility") }
     let destName = displayName(plan.display)
