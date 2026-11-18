@@ -53,6 +53,17 @@ private func place(_ el: AXUIElement, _ r: CGRect) {
     usleep(250_000)
 }
 
+// The display `query` names: its identifier, or text matched against display names. nil if
+// there's no query.
+func findDisplay(_ query: String?, displays: [DisplaySpaces], name: (String) -> String) throws -> DisplaySpaces? {
+    guard let query else { return nil }
+    guard let d = displays.first(where: { $0.uuid == query })
+            ?? displays.first(where: { name($0.uuid).lowercased().contains(query.lowercased()) }) else {
+        throw TileSpaceError("no display matches '\(query)'; list the desktops to see the displays' names")
+    }
+    return d
+}
+
 // How a move goes, worked out before anything moves.
 struct MovePlan: Equatable {
     let display: String     // the display the window ends up on
@@ -72,17 +83,8 @@ func planMove(from home: String, desktop: Int, to target: Int, display: String?,
     if displays.count == 1 && screenCount > 1 {
         throw TileSpaceError("your displays share one set of desktops, so there's no other display to move the window through. Turn on \"Displays have separate Spaces\" in System Settings > Desktop & Dock, then log out and back in.")
     }
-    let dest: DisplaySpaces
-    if let display {
-        guard let d = displays.first(where: { $0.uuid == display })
-                ?? displays.first(where: { name($0.uuid).lowercased().contains(display.lowercased()) }) else {
-            throw TileSpaceError("no display matches '\(display)'; list the desktops to see the displays' names")
-        }
-        dest = d
-    } else {
-        guard let d = displays.first(where: { $0.uuid == home }) else { throw TileSpaceError("can't tell which display the window is on") }
-        dest = d
-    }
+    let dest = try findDisplay(display, displays: displays, name: name)
+        ?? { guard let d = displays.first(where: { $0.uuid == home }) else { throw TileSpaceError("can't tell which display the window is on") }; return d }()
     let destName = name(dest.uuid)
     let park = dest.uuid == home ? displays.first { $0.uuid != home } : nil
     if dest.uuid == home && park == nil {
@@ -171,4 +173,52 @@ private func show(_ plan: MovePlan) throws {
     guard isShowing(plan.target, on: plan.display) else {
         throw TileSpaceError("macOS didn't switch desktops. Check that \"Switch to Desktop \(n)\" is on in System Settings > Keyboard > Keyboard Shortcuts > Mission Control.")
     }
+}
+
+// Switching a display to desktop `target` (from 1): the display, and the "Switch to Desktop N"
+// shortcut that does it, nil if that desktop is showing already. `display` names the display;
+// without it, `home`, the display of the frontmost window, or the only display there is.
+struct SwitchPlan: Equatable {
+    let display: String
+    let target: Int        // the desktop's ManagedSpaceID
+    let shortcut: Int?
+}
+
+func planSwitch(to target: Int, display: String?, home: String?, displays: [DisplaySpaces],
+                name: (String) -> String) throws -> SwitchPlan {
+    guard target >= 1 else { throw TileSpaceError("desktop must be a number starting at 1") }
+    guard let d = try findDisplay(display, displays: displays, name: name)
+            ?? displays.first(where: { $0.uuid == home }) ?? (displays.count == 1 ? displays.first : nil) else {
+        throw TileSpaceError("which display? There's no frontmost window to go by, so name one, e.g. --display built-in")
+    }
+    let dName = name(d.uuid)
+    guard target <= d.spaces.count else {
+        throw TileSpaceError("\(dName) has only \(d.spaces.count) desktop\(d.spaces.count == 1 ? "" : "s")")
+    }
+    let space = d.spaces[target - 1]
+    if d.current == space { return SwitchPlan(display: d.uuid, target: space, shortcut: nil) }
+    // the shortcuts number desktops across all displays, in this order
+    let n = displays.prefix(while: { $0.uuid != d.uuid }).reduce(0) { $0 + $1.spaces.count } + target
+    guard n <= maxDesktopShortcut else {
+        throw TileSpaceError("desktop \(target) of \(dName) is desktop \(n) counting across displays, and macOS only has shortcuts for the first \(maxDesktopShortcut)")
+    }
+    return SwitchPlan(display: d.uuid, target: space, shortcut: n)
+}
+
+// Show desktop `target` (from 1) on a display: the one `display` names, or else the frontmost
+// window's. Unlike Ctrl+arrow, which acts on whichever display has focus, this switches the
+// display asked for. Presses the "Switch to Desktop N" shortcut as the user has it set, and
+// checks that macOS switched.
+public func switchDesktop(_ target: Int, display: String? = nil) throws -> String {
+    let displays = managedSpaces()
+    let home = display == nil ? (try? frontmostWindow())?.display : nil
+    let plan = try planSwitch(to: target, display: display, home: home, displays: displays, name: displayName)
+    let dName = displayName(plan.display)
+    guard let n = plan.shortcut else { return "desktop \(target) of \(dName) is already showing" }
+    guard desktopShortcut(n, hotKeys: symbolicHotKeys()) != nil else { throw shortcutOff(n) }
+    try switchTo(n)
+    guard isShowing(plan.target, on: plan.display) else {
+        throw TileSpaceError("macOS didn't switch desktops. Check that \"Switch to Desktop \(n)\" is on in System Settings > Keyboard > Keyboard Shortcuts > Mission Control.")
+    }
+    return "switched \(dName) to desktop \(target)"
 }

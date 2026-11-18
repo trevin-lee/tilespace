@@ -11,6 +11,9 @@
 //                                         window's display or on the one named ("odyssey",
 //                                         "built-in"); needs a second display, and "Displays
 //                                         have separate Spaces" on
+//   tilespace switch <desktop> [--display <name>]
+//                                         switch_desktop: show desktop N on the display named, or
+//                                         the frontmost window's
 //   tilespace mcp [add | remove]          the MCP server's address, or add it to / remove it from Claude Code
 //
 // In both, the window comes last and no window means the frontmost app's. `list` and `spaces`
@@ -28,6 +31,9 @@ let usage = """
                                                 move a window to desktop N (from 1) on its display, or on the one
                                                 named; needs a second display, "Displays have separate Spaces" on,
                                                 and macOS's "Switch to Desktop N" shortcuts on (they ship off)
+           tilespace switch <desktop> [--display <name>]
+                                                show desktop N (from 1) on a display: the one named, or else the
+                                                frontmost window's. Only that display switches.
            tilespace mcp [add | remove]         the MCP server's address; add it to or remove it from Claude Code
            tilespace --version
 
@@ -116,6 +122,10 @@ case .move(let desktop, let window, let display, let follow):
     if let window { a["window"] = window }
     if let display { a["display"] = display }
     call(.moveWindowToDesktop, a)
+case .switchDesktop(let desktop, let display):
+    var a: [String: Any] = ["desktop": desktop]
+    if let display { a["display"] = display }
+    call(.switchDesktop, a)
 case .mcp:
     print("""
         TileSpace's MCP server: \(serverURL) (Streamable HTTP, on while TileSpace runs)

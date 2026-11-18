@@ -47,6 +47,18 @@ final class CLITests: XCTestCase {
         XCTAssertThrowsError(try parseCommand(["move", "2", " "])) { XCTAssertTrue("\($0)".contains("the window is empty")) }
     }
 
+    func testSwitchTakesADesktopAndADisplay() throws {
+        XCTAssertEqual(try parse("switch 3"), .switchDesktop(desktop: 3, display: nil))
+        XCTAssertEqual(try parse("switch 3 --display odyssey"), .switchDesktop(desktop: 3, display: "odyssey"))
+        XCTAssertEqual(try parseCommand(["switch", "--display", "Odyssey G95NC", "2"]), .switchDesktop(desktop: 2, display: "Odyssey G95NC"))
+        assertRefused("switch", "usage: tilespace switch <desktop>")
+        assertRefused("switch odyssey", "usage: tilespace switch <desktop>")
+        assertRefused("switch 3 odyssey", "usage: tilespace switch <desktop>")
+        assertRefused("switch 3 --follow", "tilespace switch has no option --follow")
+        assertRefused("switch 3 --display", "--display needs a display's name")
+        assertRefused("snap left-half --display built-in", "tilespace snap has no option --display")
+    }
+
     func testTheOtherCommands() throws {
         XCTAssertEqual(try parse("windows"), .windows)
         XCTAssertEqual(try parse("list"), .windows)

@@ -6,12 +6,14 @@ public enum CLICommand: Equatable {
     case windows, desktops
     case snap(action: String, window: String?)
     case move(desktop: Int, window: String?, display: String?, follow: Bool)
+    case switchDesktop(desktop: Int, display: String?)
     case mcp, mcpAdd, mcpRemove
     case help, version
 }
 
 public let snapUsage = "usage: tilespace snap <action> [<window>]"
 public let moveUsage = "usage: tilespace move <desktop> [<window>] [--display <name>] [--follow]"
+public let switchUsage = "usage: tilespace switch <desktop> [--display <name>]"
 
 // `args` without the program name. The window comes last in both commands that take one, as
 // text of any number of words, and leaving it out means the frontmost app's window. An option a
@@ -30,8 +32,14 @@ public func parseCommand(_ args: [String]) throws -> CLICommand {
         else if a.hasPrefix("--") { throw TileSpaceError("tilespace \(name) has no option \(a)") }
         else { words.append(a) }
     }
-    if name != "move", follow || display != nil {
-        throw TileSpaceError("tilespace \(name) has no option \(follow ? "--follow" : "--display"); only `tilespace move` does")
+    if name != "move", follow {
+        throw TileSpaceError("tilespace \(name) has no option --follow; only `tilespace move` does")
+    }
+    if !["move", "switch"].contains(name), display != nil {
+        throw TileSpaceError("tilespace \(name) has no option --display; only `tilespace move` and `tilespace switch` do")
+    }
+    if display?.trimmingCharacters(in: .whitespaces).isEmpty == true {
+        throw TileSpaceError("--display needs a display's name\n\(name == "switch" ? switchUsage : moveUsage)")
     }
     // the window, from the words left over: nil if there are none
     func window(_ w: ArraySlice<String>, _ usage: String) throws -> String? {
@@ -59,8 +67,12 @@ public func parseCommand(_ args: [String]) throws -> CLICommand {
         guard let first = words.first, let desktop = Int(first) else {
             throw TileSpaceError("\(moveUsage)\nthe desktop's number comes first, then the window: tilespace move 2 zen")
         }
-        if display?.trimmingCharacters(in: .whitespaces).isEmpty == true { throw TileSpaceError("--display needs a display's name\n\(moveUsage)") }
         return .move(desktop: desktop, window: try window(words.dropFirst(), moveUsage), display: display, follow: follow)
+    case "switch":
+        guard words.count == 1, let desktop = Int(words[0]) else {
+            throw TileSpaceError("\(switchUsage)\ne.g. tilespace switch 3 --display odyssey")
+        }
+        return .switchDesktop(desktop: desktop, display: display)
     case "mcp":
         switch words {
         case []: return .mcp

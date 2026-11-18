@@ -136,6 +136,7 @@ tilespace snap <action> [<window>]               # e.g. tilespace snap first-thi
 tilespace move <desktop> [<window>]              # move a window to desktop N on its display
 tilespace move <desktop> [<window>] --display built-in   # ...or on another display
 tilespace move <desktop> [<window>] --follow     # ...and stay on that desktop
+tilespace switch <desktop> [--display <name>]    # show desktop N on one display
 tilespace --version
 ```
 
@@ -169,6 +170,12 @@ Dock. With it off, all displays share one set of desktops, `tilespace desktops` 
 unless you pass `--follow`. If macOS doesn't switch back, the window still moves and `move`
 says which shortcut to check.
 
+`tilespace switch` shows desktop N on one display: the one `--display` names, or else the
+frontmost window's. Only that display switches, unlike Ctrl+arrow, which acts on whichever
+display has focus. Use it to bring a desktop up before snapping or moving a window on it.
+It presses the same "Switch to Desktop N" shortcuts as `move`, so it needs them on, and
+reaches the first 16 desktops counting across displays.
+
 The command starts TileSpace.app if it isn't running. `list` and `spaces` still work as the
 old names of `windows` and `desktops`.
 
@@ -192,6 +199,7 @@ tool:
 | `list_windows` | `tilespace windows` | Every window on every desktop, with its id, app, frame and title |
 | `list_desktops` | `tilespace desktops` | The desktops on each display, and which one is showing |
 | `snap_window` | `tilespace snap` | Any snap action, on a window or the focused one; returns the frame the window ended up with |
+| `switch_desktop` | `tilespace switch` | Show desktop N on one display |
 | `move_window_to_desktop` | `tilespace move` | Move a window, or the focused one, to desktop N, on its own display or another |
 
 The port is always 8453, so the command line and every client know where to find the app. If

@@ -16,6 +16,7 @@ public enum Tool: String, CaseIterable {
     case listDesktops = "list_desktops"
     case snapWindow = "snap_window"
     case moveWindowToDesktop = "move_window_to_desktop"
+    case switchDesktop = "switch_desktop"
 
     static let windowArg: [String: Any] = [
         "type": "string",
@@ -67,6 +68,20 @@ public enum Tool: String, CaseIterable {
                     "required": ["desktop"],
                 ],
                 "annotations": ["readOnlyHint": false, "destructiveHint": false],
+            ]
+        case .switchDesktop:
+            return [
+                "name": rawValue, "title": "Switch a display's desktop",
+                "description": "Show desktop N (from 1, as in list_desktops) on a display: the one `display` names, or else the display of the frontmost window. Only that display switches. Needs macOS's \"Switch to Desktop N\" shortcuts turned on, and only reaches the first 16 desktops counting across displays. Use it to show a desktop before snapping or moving a window that's on it.",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "desktop": ["type": "integer", "minimum": 1],
+                        "display": ["type": "string", "description": "Part of a display's name, e.g. \"built-in\". Leave out for the frontmost window's display."],
+                    ],
+                    "required": ["desktop"],
+                ],
+                "annotations": ["readOnlyHint": false, "destructiveHint": false, "idempotentHint": true],
             ]
         }
     }

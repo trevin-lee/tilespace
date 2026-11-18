@@ -253,3 +253,46 @@ final class WindowListTests: XCTestCase {
         XCTAssertTrue(rows[0].hasSuffix("Front"))
     }
 }
+
+final class PlanSwitchTests: XCTestCase {
+    let mac = DisplaySpaces(uuid: "M", spaces: [1, 2, 3], current: 1)
+    let odyssey = DisplaySpaces(uuid: "O", spaces: [11, 12, 13, 14], current: 12)
+    func name(_ uuid: String) -> String { uuid == "M" ? "Built-in Retina Display" : "Odyssey G95NC" }
+
+    func plan(_ target: Int, display: String? = nil, home: String? = "M", displays: [DisplaySpaces]? = nil) throws -> SwitchPlan {
+        try planSwitch(to: target, display: display, home: home, displays: displays ?? [mac, odyssey], name: name)
+    }
+
+    func assertThrows(_ message: String, _ f: @autoclosure () throws -> SwitchPlan, line: UInt = #line) {
+        XCTAssertThrowsError(try f(), line: line) { XCTAssertTrue("\($0)".contains(message), "\($0)", line: line) }
+    }
+
+    func testSwitchesTheDisplayNamedNotTheOneInFront() throws {
+        // the shortcuts count the MacBook's 3 desktops first
+        XCTAssertEqual(try plan(4, display: "odyssey"), SwitchPlan(display: "O", target: 14, shortcut: 7))
+        XCTAssertEqual(try plan(1, display: "odyssey", home: nil), SwitchPlan(display: "O", target: 11, shortcut: 4))
+    }
+
+    func testWithoutADisplayTheFrontmostWindowsOne() throws {
+        XCTAssertEqual(try plan(3), SwitchPlan(display: "M", target: 3, shortcut: 3))
+        XCTAssertEqual(try plan(3, home: "O"), SwitchPlan(display: "O", target: 13, shortcut: 6))
+        // no frontmost window: fine with one display, asks which with two
+        XCTAssertEqual(try plan(2, home: nil, displays: [mac]), SwitchPlan(display: "M", target: 2, shortcut: 2))
+        assertThrows("which display?", try plan(2, home: nil))
+    }
+
+    func testTheDesktopShowingAlreadyNeedsNoShortcut() throws {
+        XCTAssertEqual(try plan(2, display: "odyssey"), SwitchPlan(display: "O", target: 12, shortcut: nil))
+        XCTAssertEqual(try plan(1), SwitchPlan(display: "M", target: 1, shortcut: nil))
+    }
+
+    func testOutOfRange() {
+        assertThrows("starting at 1", try plan(0))
+        assertThrows("Built-in Retina Display has only 3 desktops", try plan(4))
+        assertThrows("no display matches 'lg'", try plan(1, display: "lg"))
+        let ten = DisplaySpaces(uuid: "M", spaces: Array(1...10), current: 1)
+        let big = DisplaySpaces(uuid: "O", spaces: Array(11...20), current: 11)
+        assertThrows("is desktop 17 counting across displays", try plan(7, display: "odyssey", displays: [ten, big]))
+        XCTAssertEqual(try plan(6, display: "odyssey", displays: [ten, big]).shortcut, 16)
+    }
+}

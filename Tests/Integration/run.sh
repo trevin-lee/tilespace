@@ -122,7 +122,7 @@ init=$(curl -s -X POST $url -H 'Content-Type: application/json' \
     -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}')
 [[ $init == *'"name":"tilespace"'* ]] && pass "MCP initialize" || fail "MCP initialize: $init"
 tools=$(curl -s -X POST $url -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
-[[ $tools == *list_windows*list_desktops*snap_window*move_window_to_desktop* ]] && pass "MCP tools/list" || fail "MCP tools/list: $tools"
+[[ $tools == *list_windows*list_desktops*snap_window*move_window_to_desktop*switch_desktop* ]] && pass "MCP tools/list" || fail "MCP tools/list: $tools"
 [[ $(mcp -H 'Origin: https://example.com' -d '{}') == 403 ]] && pass "MCP turns away browsers" || fail "MCP let a browser Origin in"
 
 echo "--- tilespace (through the app)"
@@ -153,6 +153,14 @@ expect_error "move on one display" "second display" move 2 tilespace test
 expect_error "move to desktop 0" "starting at 1" move 0 tilespace test
 expect_error "move to an unknown display" "no display matches" move 2 tilespace test --display nosuchdisplay
 expect_error "snap an unknown window" "no window matches" snap left-half no such window
+# switching: the runner's one desktop is showing, so desktop 1 needs no switch; past the last
+# desktop, or on a display that isn't there, it says so before pressing anything
+said=$($tilespace switch 1 2>&1) && [[ $said == *"desktop 1 of "*" is already showing" ]] &&
+    pass "tilespace switch 1: $said" || fail "tilespace switch 1: $said"
+said=$($tilespace switch 1 --display "${${(f)$($tilespace desktops)}[1]%%:*}" 2>&1) && [[ $said == *"already showing" ]] &&
+    pass "tilespace switch 1 --display <its name>: $said" || fail "tilespace switch 1 --display <its name>: $said"
+expect_error "switch past the last desktop" "has only" switch 99
+expect_error "switch on an unknown display" "no display matches" switch 1 --display nosuchdisplay
 # with no window, a move is of the frontmost app's window, which is the test window
 expect_error "move the frontmost window on one display" "second display" move 2
 # the window goes last in both commands; the old order of move says so
