@@ -4,8 +4,8 @@ Window management for macOS that works with SIP on and with macOS's own desktops
 
 - **Rectangle-style snapping**: halves, corners, thirds, two-thirds, first fourth and last
   three fourths, maximize, maximize height, center, larger/smaller, restore, and
-  previous/next display. It uses Rectangle's Ctrl+Option shortcuts, or you can drag a window
-  to a screen edge or corner. Repeating Left or Right Half moves the window to the next
+  previous/next display. Most have Rectangle's Ctrl+Option shortcuts, and you can drag a
+  window to a screen edge or corner. Repeating Left or Right Half moves the window to the next
   display over. Repeating First or Last Third cycles through the thirds.
 - **Moving a window to another desktop.** macOS has no API for that, and macOS 27 ignores
   synthetic title-bar drags. But moving a window onto another display puts it on whatever
@@ -70,6 +70,7 @@ tilespace mcp remove                            # if you added it to Claude Code
 osascript -e 'quit app "TileSpace"'
 rm -rf ~/Applications/TileSpace.app ~/.local/bin/tilespace
 tccutil reset Accessibility com.trevinlee.tilespace
+defaults delete com.trevinlee.tilespace         # its settings; a later install starts fresh
 ```
 
 ## Use
@@ -87,6 +88,11 @@ tccutil reset Accessibility com.trevinlee.tilespace
 | ⌃⌥ ⌫ | Restore |
 | ⌃⌥⌘ ← → | Previous, next display |
 
+The shortcuts are fixed: they can't be changed, only switched off all together in the menu.
+First Fourth and Last Three Fourths have no shortcut. They're in the menu, in the drag areas
+below, and available as links and commands. If macOS wouldn't let TileSpace have one of the
+shortcuts, the menu names it, and that action still works from the menu.
+
 You can also drag a window to a screen edge or corner. A preview shows where it will go, and
 Esc cancels. Dragging a snapped window away gives it back its size from before.
 
@@ -96,6 +102,11 @@ Esc cancels. Dragging a snapped window away gives it back its size from before.
 | Top edge | Maximize height |
 | Top-left or top-right corner | First fourth, last three fourths |
 | Bottom-left corner, bottom edge, bottom-right corner | First, center, last third |
+
+The drag areas are fixed too, and on purpose they aren't the actions named after the same
+corners: a corner gives a column (a fourth, three fourths or a third of the display), not a
+quarter, and the top edge gives Maximize Height, not Maximize. The quarters and Maximize have
+shortcuts.
 
 Some windows have a minimum or a fixed size. Snapped to a spot that's too small for it, such a
 window keeps its own size and stays on the display, against the right or bottom edge if the
@@ -196,9 +207,11 @@ from a page, and requests with an unexpected `Host`, which is how DNS rebinding 
 
 ## Caveats
 
-Moving windows between desktops relies on private SkyLight calls (read-only ones) and on how
-macOS treats windows moved between displays. A macOS update could break either, and it rules
-out the Mac App Store.
+TileSpace relies on private macOS calls throughout, not only for moving windows. Listing
+windows and finding one by id or by text use read-only SkyLight calls. Every snap, the
+shortcuts included, uses a private Accessibility call to tell which window it's acting on.
+Moving a window between desktops also relies on how macOS treats windows moved between
+displays. A macOS update could break any of these, and they rule out the Mac App Store.
 
 ## Development
 
