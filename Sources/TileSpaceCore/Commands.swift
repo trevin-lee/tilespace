@@ -23,14 +23,18 @@ public func describe(_ r: CGRect) -> String { "\(Int(r.minX)),\(Int(r.minY)) \(I
 func formatWindows(_ wins: [Win], displayOrder: [String]) -> String {
     var rank: [String: Int] = [:]
     for (i, uuid) in displayOrder.enumerated() where rank[uuid] == nil { rank[uuid] = i }
+    // the display's whole name, as `desktops` prints it and `move --display` matches it, so the
+    // first column is as wide as the longest one
+    func at(_ w: Win) -> String { "\(w.displayName) \(w.desktop)\(w.showing ? "*" : "")" }
+    let width = wins.map { at($0).count }.max() ?? 0
     return wins.enumerated()
         .sorted { a, b in
             (rank[a.element.display] ?? .max, a.element.desktop, a.offset) < (rank[b.element.display] ?? .max, b.element.desktop, b.offset)
         }
         .map { _, w in
-            let at = "\(w.displayName.prefix(10)) \(w.desktop)\(w.showing ? "*" : "")"
-            let row = String(format: "%-13@ %6d  %-18@ %-22@ %@", at as NSString, w.id, String(w.app.prefix(18)) as NSString,
-                             describe(w.frame) as NSString, w.title as NSString)
+            let row = at(w).padding(toLength: width, withPad: " ", startingAt: 0)
+                + String(format: " %6d  %-18@ %-22@ %@", w.id, String(w.app.prefix(18)) as NSString,
+                         describe(w.frame) as NSString, w.title as NSString)
             return row.replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression)
         }
         .joined(separator: "\n")

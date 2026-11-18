@@ -239,9 +239,16 @@ final class WindowListTests: XCTestCase {
         let wins = [win(5, "Zen", "Back", display: "O", desktop: 1), win(1, "Terminal", desktop: 2, showing: false),
                     win(2, "Zen", "Front"), win(3, "Mail", "Inbox")]
         let rows = formatWindows(wins, displayOrder: ["M", "O"]).components(separatedBy: "\n")
-        XCTAssertEqual(rows.map { $0.split(separator: " ", omittingEmptySubsequences: true)[3] }, ["2", "3", "1", "5"])
-        XCTAssertTrue(rows[0].hasPrefix("Built-in R 1*"))
-        XCTAssertTrue(rows[2].hasPrefix("Built-in R 2 "), "no * on a desktop that isn't showing")
+        // the id is the number after the desktop's
+        let ids = rows.map { row -> String in
+            let r = row.range(of: #"[0-9]\*? +[0-9]+  "#, options: .regularExpression)!
+            return row[r].split(separator: " ")[1].description
+        }
+        XCTAssertEqual(ids, ["2", "3", "1", "5"])
+        // whole display names, in a column as wide as the longest
+        XCTAssertTrue(rows[0].hasPrefix("Built-in Retina Display 1*      2  Zen"), rows[0])
+        XCTAssertTrue(rows[2].hasPrefix("Built-in Retina Display 2       1  Terminal"), "no * on a desktop that isn't showing: \(rows[2])")
+        XCTAssertTrue(rows[3].hasPrefix("Odyssey G95NC 1*                5  Zen"), rows[3])
         XCTAssertTrue(rows[2].hasSuffix("800x600"), "no trailing spaces without a title")
         XCTAssertTrue(rows[0].hasSuffix("Front"))
     }
