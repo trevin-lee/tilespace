@@ -251,6 +251,23 @@ check "Ctrl+Option+D again: center third" $(( vx + vw / 3 )) $vy $(( vw * 2 / 3 
 build/input key 51 ctrl opt           # Ctrl+Option+Delete
 check "Ctrl+Option+Delete: restore" $before
 
+echo "--- links"
+# tilespace:// links act on the frontmost window, which is the test window
+reset_window
+open -g "tilespace://execute-action?name=left-half"
+check "tilespace://execute-action?name=left-half" $vx $vy $(( vw / 2 )) $vh
+# a move link on one display can't work: nothing moves, and the app logs why (a link has
+# nowhere to show an error). The log line shows the link reached the move itself.
+read_state; at=($wx $wy $ww $wh)
+open -g "tilespace://move-to-desktop?desktop=2"
+check "tilespace://move-to-desktop on one display: the window stays" $at
+sleep 1
+said=$(cat build/app.log; log show --style compact --last 2m --predicate 'process == "TileSpace"' 2>/dev/null || true)
+[[ $said == *"couldn't move the window"*"second display"* ]] &&
+    pass "tilespace://move-to-desktop ran the move, which said it needs a second display" ||
+    fail "tilespace://move-to-desktop: no 'couldn't move the window ... second display' in the app's log"
+pgrep -x TileSpace >/dev/null && pass "the app still runs" || fail "the app quit after a move link"
+
 echo "--- two windows of one app"
 # the test app's other window is newer, and behind it: the list is front to back, and text
 # that matches both means the one in front
