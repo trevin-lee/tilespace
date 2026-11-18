@@ -115,9 +115,9 @@ Scripts and launchers can run any action on the frontmost window with a link:
 tilespace windows                                # every window, with its desktop and id
 tilespace desktops                               # desktops per display (* = showing)
 tilespace snap <action> [<window>]               # e.g. tilespace snap first-third
-tilespace move <window> <desktop>                # move a window to desktop N on its display
-tilespace move <window> <desktop> <display>      # ...or on another display, e.g. built-in
-tilespace move <window> <desktop> --follow       # ...and stay on that desktop
+tilespace move <desktop> [<window>]              # move a window to desktop N on its display
+tilespace move <desktop> [<window>] --display built-in   # ...or on another display
+tilespace move <desktop> [<window>] --follow     # ...and stay on that desktop
 ```
 
 `tilespace windows` prints one window per line: display and desktop number, window id, app,
@@ -127,9 +127,10 @@ moved, because macOS's Accessibility API can't reach the others. Windows on the 
 have no title. macOS only shows another app's window titles to apps with Screen Recording
 access, which TileSpace doesn't ask for. Windows of full-screen apps aren't listed.
 
-`<window>` is a window id from `tilespace windows`, or text matched against the app name and
-window title, such as `zen` or `"zen github"`. Quote text that's more than one word in
-`move`. Leave out the window in `snap` to act on the frontmost app's window.
+`<window>` comes last in `snap` and `move`. It's a window id from `tilespace windows`, or text
+matched against the app name and window title, such as `zen` or `zen github`. Leave it out to
+act on the frontmost app's window. `--display` takes part of a display's name; quote one of
+more than one word. A command stops on an option or argument it doesn't take.
 
 `tilespace snap` prints the action applied and the frame the window ended up with, such as
 `left-half: 0,33 864x1084`. That's the window's real frame, so for a window that kept its own
@@ -170,7 +171,7 @@ tool:
 | `list_windows` | `tilespace windows` | Every window on every desktop, with its id, app, frame and title |
 | `list_desktops` | `tilespace desktops` | The desktops on each display, and which one is showing |
 | `snap_window` | `tilespace snap` | Any snap action, on a window or the focused one; returns the frame the window ended up with |
-| `move_window_to_desktop` | `tilespace move` | Move a window to desktop N, on its own display or another |
+| `move_window_to_desktop` | `tilespace move` | Move a window, or the focused one, to desktop N, on its own display or another |
 
 The server listens only on 127.0.0.1, so nothing else on the network can reach it. Any
 program running as you can use it, the same as it could use Accessibility directly, but web

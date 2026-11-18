@@ -45,11 +45,10 @@ final class Tools {
                 let r = try snapper.run(action, on: el)
                 return ToolResult("\(r.result.cliName): \(describe(r.rect))")
             case .moveWindowToDesktop:
-                guard let q = window(args) else { throw TileSpaceError("which window? pass `window`") }
                 guard let desktop = (args["desktop"] as? NSNumber)?.intValue ?? (args["desktop"] as? String).flatMap(Int.init) else {
-                    throw TileSpaceError("`desktop` must be a number starting at 1")
+                    throw TileSpaceError("desktop must be a number starting at 1")
                 }
-                return ToolResult(try moveWindow(q, toDesktop: desktop, display: args["display"] as? String,
+                return ToolResult(try moveWindow(window(args), toDesktop: desktop, display: args["display"] as? String,
                                                  follow: args["follow"] as? Bool ?? false))
             }
         } catch {

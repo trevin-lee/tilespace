@@ -137,10 +137,18 @@ expect_error() {   # expect_error <label> <text the error has to contain> <args.
     elif [[ $err == *$want* ]]; then pass "$label fails: $err"
     else fail "$label: wanted an error about '$want', got: $err"; fi
 }
-expect_error "move on one display" "second display" move "tilespace test" 2
-expect_error "move to desktop 0" "starting at 1" move "tilespace test" 0
-expect_error "move to an unknown display" "no display matches" move "tilespace test" 2 nosuchdisplay
-expect_error "snap an unknown window" "no window matches" snap left-half "no such window"
+expect_error "move on one display" "second display" move 2 tilespace test
+expect_error "move to desktop 0" "starting at 1" move 0 tilespace test
+expect_error "move to an unknown display" "no display matches" move 2 tilespace test --display nosuchdisplay
+expect_error "snap an unknown window" "no window matches" snap left-half no such window
+# with no window, a move is of the frontmost app's window, which is the test window
+expect_error "move the frontmost window on one display" "second display" move 2
+# the window goes last in both commands; the old order of move says so
+expect_error "move with the window first" "the desktop's number comes first" move "tilespace test" 2
+# an option a command doesn't take stops it, and nothing is snapped
+read_state; at=($wx $wy $ww $wh)
+expect_error "snap with an option it doesn't take" "has no option --follow" snap left-half --follow
+check "the refused snap left the window alone" $at
 
 # Where each snap should put the window is worked out here, from the display's visible area: the
 # command's reply is the window's own frame, so going by it would only compare the window with

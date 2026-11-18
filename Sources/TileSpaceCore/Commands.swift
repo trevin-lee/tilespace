@@ -70,7 +70,8 @@ func planMove(from home: String, desktop: Int, to target: Int, display: String?,
     }
     let dest: DisplaySpaces
     if let display {
-        guard let d = displays.first(where: { name($0.uuid).lowercased().contains(display.lowercased()) }) else {
+        guard let d = displays.first(where: { $0.uuid == display })
+                ?? displays.first(where: { name($0.uuid).lowercased().contains(display.lowercased()) }) else {
             throw TileSpaceError("no display matches '\(display)'; `tilespace desktops` lists them")
         }
         dest = d
@@ -107,16 +108,17 @@ func planMove(from home: String, desktop: Int, to target: Int, display: String?,
     return MovePlan(display: dest.uuid, park: park?.uuid, target: dest.spaces[target - 1], switchTo: to, switchBack: back)
 }
 
-// Move a window to desktop `target` (from 1) on its own display, or on `display` (matched
-// against display names). macOS has no API for this, but moving a window onto another display
+// Move a window (the frontmost app's focused one if `query` is nil) to desktop `target` (from 1)
+// on its own display, or on `display` (a display's identifier, or text matched against display
+// names). macOS has no API for this, but moving a window onto another display
 // puts it on whichever desktop that display is showing. So, within one display: park the
 // window on another display, switch its own display to the target desktop, and move it back
 // to exactly where it was. To another display: show the target desktop there and move the
 // window over. Either way it switches back afterwards unless `follow`. Presses the "Switch to
 // Desktop N" shortcuts (as the user has them set), so it blocks for a couple of seconds.
-public func moveWindow(_ query: String, toDesktop target: Int, display: String? = nil, follow: Bool = false) throws -> String {
+public func moveWindow(_ query: String?, toDesktop target: Int, display: String? = nil, follow: Bool = false) throws -> String {
     guard target >= 1 else { throw TileSpaceError("desktop must be a number starting at 1") }
-    let w = try findWindow(query)
+    let w = try query.map { try findWindow($0) } ?? frontmostWindow()
     let displays = managedSpaces()
     guard let plan = try planMove(from: w.display, desktop: w.desktop, to: target, display: display, follow: follow,
                                   displays: displays, screenCount: NSScreen.screens.count, name: displayName)

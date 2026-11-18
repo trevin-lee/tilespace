@@ -4,16 +4,17 @@
 //
 //   tilespace windows                     list_windows: every window, with its desktop and id
 //   tilespace desktops                    list_desktops: desktops per display (* = showing)
-//   tilespace snap <action> [<window>]    snap_window: e.g. left-half (no window = the frontmost app's);
-//                                         prints the frame the window ended up with
-//   tilespace move <window> <desktop> [<display>] [--follow]
+//   tilespace snap <action> [<window>]    snap_window: e.g. left-half; prints the frame the
+//                                         window ended up with
+//   tilespace move <desktop> [<window>] [--display <name>] [--follow]
 //                                         move_window_to_desktop: desktop is from 1, on the
-//                                         window's display or on <display> ("odyssey", "built-in");
-//                                         needs a second display, and "Displays have
-//                                         separate Spaces" on
+//                                         window's display or on the one named ("odyssey",
+//                                         "built-in"); needs a second display, and "Displays
+//                                         have separate Spaces" on
 //   tilespace mcp [install | uninstall]   the MCP server's address, or add it to / remove it from Claude Code
 //
-// `list` and `spaces` still work, as the old names of `windows` and `desktops`.
+// In both, the window comes last and no window means the frontmost app's. `list` and `spaces`
+// still work, as the old names of `windows` and `desktops`.
 import Foundation
 import TileSpaceCore
 
@@ -22,17 +23,18 @@ func die(_ s: String) -> Never { FileHandle.standardError.write((s + "\n").data(
 let usage = """
     usage: tilespace windows                    every window, with its desktop and id
            tilespace desktops                   desktops per display (* = showing)
-           tilespace snap <action> [<window>]   snap a window, or the frontmost app's
-           tilespace move <window> <desktop> [<display>] [--follow]
-                                                move a window to desktop N (from 1) on its display, or on <display>;
-                                                needs a second display, "Displays have separate Spaces" on, and
-                                                macOS's "Switch to Desktop N" shortcuts on (they ship off)
+           tilespace snap <action> [<window>]   snap a window
+           tilespace move <desktop> [<window>] [--display <name>] [--follow]
+                                                move a window to desktop N (from 1) on its display, or on the one
+                                                named; needs a second display, "Displays have separate Spaces" on,
+                                                and macOS's "Switch to Desktop N" shortcuts on (they ship off)
            tilespace mcp [install | uninstall]  the MCP server's address; add it to or remove it from Claude Code
 
-    <window> is a window id from `tilespace windows`, or text matched against the app name and
-    window title. It has to be on a desktop that's showing (* in the list). A move switches
-    desktops and back; --follow stays on the target desktop. A snap prints the action applied
-    and the frame the window ended up with: a window with a minimum or fixed size keeps it.
+    <window> comes last, and can be several words. It's a window id from `tilespace windows`, or
+    text matched against the app name and window title. It has to be on a desktop that's showing
+    (* in the list). Leave it out for the frontmost app's window. A move switches desktops and
+    back; --follow stays on the target desktop. A snap prints the action applied and the frame
+    the window ended up with: a window with a minimum or fixed size keeps it.
 
     actions: \(SnapAction.allCases.map(\.cliName).joined(separator: " "))
     """
@@ -93,40 +95,35 @@ func call(_ tool: Tool, _ arguments: [String: Any] = [:]) -> Never {
     }
 }
 
-var args = Array(CommandLine.arguments.dropFirst())
-let follow = args.contains("--follow"); args.removeAll { $0 == "--follow" }
+let command: CLICommand
+do { command = try parseCommand(Array(CommandLine.arguments.dropFirst())) } catch {
+    let message = "\(error)"
+    die(message.hasPrefix("unknown command") ? "\(message)\n\n\(usage)" : message)
+}
 
-switch args.first {
-case "windows", "list":
+switch command {
+case .windows:
     call(.listWindows)
-case "desktops", "spaces":
+case .desktops:
     call(.listDesktops)
-case "snap":
-    guard args.count >= 2, SnapAction(cliName: args[1]) != nil else {
-        die("usage: tilespace snap <action> [<window>]\nactions: " + SnapAction.allCases.map(\.cliName).joined(separator: " "))
-    }
-    var a: [String: Any] = ["action": args[1]]
-    if args.count >= 3 { a["window"] = args[2...].joined(separator: " ") }
+case .snap(let action, let window):
+    var a: [String: Any] = ["action": action]
+    if let window { a["window"] = window }
     call(.snapWindow, a)
-case "move":
-    guard args.count == 3 || args.count == 4 else {
-        die("usage: tilespace move <window> <desktop> [<display>] [--follow]\n(quote a <window> or <display> of more than one word)")
-    }
-    guard let desktop = Int(args[2]) else { die("desktop must be a number starting at 1") }
-    var a: [String: Any] = ["window": args[1], "desktop": desktop, "follow": follow]
-    if args.count == 4 { a["display"] = args[3] }
+case .move(let desktop, let window, let display, let follow):
+    var a: [String: Any] = ["desktop": desktop, "follow": follow]
+    if let window { a["window"] = window }
+    if let display { a["display"] = display }
     call(.moveWindowToDesktop, a)
-case "mcp" where args.count == 1:
+case .mcp:
     print("""
         TileSpace's MCP server: \(serverURL) (Streamable HTTP, on while TileSpace runs)
         Add it to Claude Code with `tilespace mcp install`, or in another client as an HTTP server at that URL.
         """)
-case "mcp" where args.count == 2 && ["install", "uninstall"].contains(args[1]):
-    let (ok, output) = args[1] == "install" ? addToClaudeCodeConfig() : removeFromClaudeCodeConfig()
+case .mcpAdd, .mcpRemove:
+    let (ok, output) = command == .mcpAdd ? addToClaudeCodeConfig() : removeFromClaudeCodeConfig()
     if !ok { die(output) }
     print(output)
-case nil, "help", "-h", "--help":
+case .help:
     print(usage)
-default:
-    die("unknown command: \(args.joined(separator: " "))\n\n\(usage)")
 }

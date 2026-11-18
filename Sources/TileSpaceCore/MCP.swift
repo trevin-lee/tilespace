@@ -18,7 +18,7 @@ public enum Tool: String, CaseIterable {
 
     static let windowArg: [String: Any] = [
         "type": "string",
-        "description": "A window id from list_windows (e.g. \"4144\"), or text matched case-insensitively against \"<app> <title>\" (windows on a showing desktop first, frontmost first). The window has to be on a desktop that's showing: one marked * in list_windows.",
+        "description": "A window id from list_windows (e.g. \"4144\"), or text matched case-insensitively against \"<app> <title>\" (windows on a showing desktop first, frontmost first). The window has to be on a desktop that's showing: one marked * in list_windows. Leave out for the frontmost app's focused window.",
     ]
 
     var definition: [String: Any] {
@@ -45,7 +45,7 @@ public enum Tool: String, CaseIterable {
                     "type": "object",
                     "properties": [
                         "action": ["type": "string", "enum": SnapAction.allCases.map(\.cliName)],
-                        "window": Tool.windowArg.merging(["description": "\(Tool.windowArg["description"]!) Leave out for the focused window."]) { $1 },
+                        "window": Tool.windowArg,
                     ],
                     "required": ["action"],
                 ],
@@ -54,7 +54,7 @@ public enum Tool: String, CaseIterable {
         case .moveWindowToDesktop:
             return [
                 "name": rawValue, "title": "Move a window to another desktop",
-                "description": "Move a window to desktop N (from 1, as in list_desktops) on its own display, or on another display if `display` is given. Every move needs a second display: moving between desktops of one display parks the window on another display meanwhile, so with only one display it fails. Each display needs its own desktops (\"Displays have separate Spaces\" on in System Settings > Desktop & Dock, the default); with it off, list_desktops shows one \"All displays\" and moves fail. Needs macOS's \"Switch to Desktop N\" shortcuts turned on (they ship off; with any keys; if one it needs is off, it fails before moving and names it), and only reaches the first 16 desktops counting across displays. The screen visibly switches desktops, then switches back unless `follow` is true (if macOS doesn't switch back, the window still moves and the result says so); it takes a couple of seconds.",
+                "description": "Move a window, or the frontmost app's focused one, to desktop N (from 1, as in list_desktops) on its own display, or on another display if `display` is given. Every move needs a second display: moving between desktops of one display parks the window on another display meanwhile, so with only one display it fails. Each display needs its own desktops (\"Displays have separate Spaces\" on in System Settings > Desktop & Dock, the default); with it off, list_desktops shows one \"All displays\" and moves fail. Needs macOS's \"Switch to Desktop N\" shortcuts turned on (they ship off; with any keys; if one it needs is off, it fails before moving and names it), and only reaches the first 16 desktops counting across displays. The screen visibly switches desktops, then switches back unless `follow` is true (if macOS doesn't switch back, the window still moves and the result says so); it takes a couple of seconds.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -63,7 +63,7 @@ public enum Tool: String, CaseIterable {
                         "display": ["type": "string", "description": "Part of a display's name, e.g. \"built-in\". Leave out for the window's own display."],
                         "follow": ["type": "boolean", "description": "Leave the target desktop showing afterwards instead of switching back. Default false."],
                     ],
-                    "required": ["window", "desktop"],
+                    "required": ["desktop"],
                 ],
                 "annotations": ["readOnlyHint": false, "destructiveHint": false],
             ]

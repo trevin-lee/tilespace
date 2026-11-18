@@ -119,6 +119,16 @@ public func findWindow(_ q: String, in wins: [Win]? = nil) throws -> Win {
     throw TileSpaceError("\(w.label) is on desktop \(w.desktop) of \(w.displayName), which isn't showing. Switch to that desktop first.")
 }
 
+// The frontmost app's focused window, as a row of the window list: what a command acts on when
+// it names no window.
+func frontmostWindow() throws -> Win {
+    guard let el = focusedWindow(), let id = windowID(of: el) else { throw TileSpaceError("the frontmost app has no focused window") }
+    guard let w = allWindows().first(where: { $0.id == id }) else {
+        throw TileSpaceError("the frontmost window can't be moved: it's full screen, or isn't an ordinary window")
+    }
+    return w
+}
+
 // The CoreGraphics window id of an accessibility element.
 typealias GetWinFn = @convention(c) (AXUIElement, UnsafeMutablePointer<CGWindowID>) -> AXError
 let getWin = unsafeBitCast(dlsym(dlopen(nil, RTLD_NOW), "_AXUIElementGetWindow"), to: GetWinFn.self)
