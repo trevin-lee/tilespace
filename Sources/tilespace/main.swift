@@ -11,7 +11,7 @@
 //                                         window's display or on the one named ("odyssey",
 //                                         "built-in"); needs a second display, and "Displays
 //                                         have separate Spaces" on
-//   tilespace mcp [install | uninstall]   the MCP server's address, or add it to / remove it from Claude Code
+//   tilespace mcp [add | remove]          the MCP server's address, or add it to / remove it from Claude Code
 //
 // In both, the window comes last and no window means the frontmost app's. `list` and `spaces`
 // still work, as the old names of `windows` and `desktops`.
@@ -28,7 +28,7 @@ let usage = """
                                                 move a window to desktop N (from 1) on its display, or on the one
                                                 named; needs a second display, "Displays have separate Spaces" on,
                                                 and macOS's "Switch to Desktop N" shortcuts on (they ship off)
-           tilespace mcp [install | uninstall]  the MCP server's address; add it to or remove it from Claude Code
+           tilespace mcp [add | remove]         the MCP server's address; add it to or remove it from Claude Code
 
     <window> comes last, and can be several words. It's a window id from `tilespace windows`, or
     text matched against the app name and window title. It has to be on a desktop that's showing
@@ -118,7 +118,7 @@ case .move(let desktop, let window, let display, let follow):
 case .mcp:
     print("""
         TileSpace's MCP server: \(serverURL) (Streamable HTTP, on while TileSpace runs)
-        Add it to Claude Code with `tilespace mcp install`, or in another client as an HTTP server at that URL.
+        Add it to Claude Code with `tilespace mcp add`, or in another client as an HTTP server at that URL.
         """)
 case .mcpAdd, .mcpRemove:
     let (ok, output) = command == .mcpAdd ? addToClaudeCodeConfig() : removeFromClaudeCodeConfig()

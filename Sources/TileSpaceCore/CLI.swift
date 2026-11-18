@@ -63,9 +63,9 @@ public func parseCommand(_ args: [String]) throws -> CLICommand {
     case "mcp":
         switch words {
         case []: return .mcp
-        case ["install"]: return .mcpAdd
-        case ["uninstall"]: return .mcpRemove
-        default: throw TileSpaceError("usage: tilespace mcp [install | uninstall]")
+        case ["add"]: return .mcpAdd
+        case ["remove"]: return .mcpRemove
+        default: throw TileSpaceError("usage: tilespace mcp [add | remove]")
         }
     default:
         throw TileSpaceError("unknown command: \(args.joined(separator: " "))")

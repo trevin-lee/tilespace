@@ -66,7 +66,7 @@ when the new app asks.
 **To uninstall**, first turn off Launch at Login in TileSpace's menu, then:
 
 ```sh
-tilespace mcp uninstall                         # if you added it to Claude Code
+tilespace mcp remove                            # if you added it to Claude Code
 osascript -e 'quit app "TileSpace"'
 rm -rf ~/Applications/TileSpace.app ~/.local/bin/tilespace
 tccutil reset Accessibility com.trevinlee.tilespace
@@ -163,11 +163,13 @@ old names of `windows` and `desktops`.
 ## MCP
 
 The app serves MCP (Streamable HTTP) at `http://127.0.0.1:8453/mcp` while it runs. To add it
-to Claude Code, choose **Add to Claude Code** in the app's menu, or run:
+to Claude Code, choose **Add to Claude Code** in the app's menu, or run `tilespace mcp add`.
+**Remove from Claude Code** and `tilespace mcp remove` take it out again.
 
 ```sh
-tilespace mcp install     # claude mcp add --scope user --transport http tilespace http://127.0.0.1:8453/mcp
-tilespace mcp uninstall   # claude mcp remove --scope user tilespace
+tilespace mcp          # prints the server's address
+tilespace mcp add      # claude mcp add --scope user --transport http tilespace http://127.0.0.1:8453/mcp
+tilespace mcp remove   # claude mcp remove --scope user tilespace
 ```
 
 For another client, add an HTTP MCP server at that URL. Each command above is one call to a

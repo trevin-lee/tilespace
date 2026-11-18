@@ -150,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(withTitle: "MCP Server: \(tools.status)", action: nil, keyEquivalent: "")
         menu.addItem(withTitle: "Copy MCP Server URL", action: #selector(copyURL), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Add to Claude Code", action: #selector(addToClaudeCode), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Remove from Claude Code", action: #selector(removeFromClaudeCode), keyEquivalent: "").target = self
         menu.addItem(.separator())
         let login = menu.addItem(withTitle: "Launch at Login", action: #selector(toggleLogin), keyEquivalent: "")
         login.target = self
@@ -198,13 +199,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSPasteboard.general.setString(serverURL, forType: .string)
     }
 
+    // the same two commands as `tilespace mcp add` and `tilespace mcp remove`
     @objc func addToClaudeCode() {
-        // a login shell, so `claude` is on the PATH the way it is in Terminal
-        let (ok, output) = addToClaudeCodeConfig()
+        claudeCode(addToClaudeCodeConfig(), failed: "Couldn't add TileSpace to Claude Code",
+                   then: "New Claude Code sessions have TileSpace's tools. In a running session, use /mcp to connect.")
+    }
+
+    @objc func removeFromClaudeCode() {
+        claudeCode(removeFromClaudeCodeConfig(), failed: "Couldn't remove TileSpace from Claude Code", then: "")
+    }
+
+    // Say what happened, in the command's own words: "already set up" isn't "added".
+    func claudeCode(_ result: (ok: Bool, output: String), failed: String, then: String) {
         let alert = NSAlert()
-        alert.messageText = ok ? "Added TileSpace to Claude Code" : "Couldn't add TileSpace to Claude Code"
-        alert.informativeText = ok ? "New Claude Code sessions have TileSpace's tools. In a running session, use /mcp to connect."
-                                   : output
+        alert.messageText = result.ok ? result.output.prefix(1).uppercased() + result.output.dropFirst() : failed
+        alert.informativeText = result.ok ? then : result.output
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
     }
