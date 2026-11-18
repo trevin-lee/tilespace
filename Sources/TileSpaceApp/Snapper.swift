@@ -54,7 +54,9 @@ final class Snapper {
         let untouched = rec.map { close($0.frame, f) } ?? false
         let displays = screens()
         guard let r = snap(action, window: f, last: untouched ? rec!.last : nil, screens: displays) else {
-            throw TileSpaceError("can't \(action.title.lowercased()) this window")
+            // nil for Previous and Next Display with only one display, and with no display at all
+            throw TileSpaceError(displays.count == 1 ? "there's no other display to move this window to"
+                                                     : "can't tell which display this window is on")
         }
         // where it actually went: apps can round the size (Terminal snaps to rows), or keep a
         // bigger one, and then the window is moved to fit on the display

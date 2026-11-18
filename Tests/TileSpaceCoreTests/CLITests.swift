@@ -107,3 +107,13 @@ final class MoveMenuTests: XCTestCase {
         XCTAssertTrue(shared[0].title.contains("Displays have separate Spaces"))
     }
 }
+
+final class ShortcutNoticeTests: XCTestCase {
+    func testNamesTheShortcutsWhileTheyAreFew() {
+        XCTAssertNil(shortcutNotice([]))
+        XCTAssertEqual(shortcutNotice(["Left Half"]), "The shortcut for Left Half couldn't be set up")
+        XCTAssertEqual(shortcutNotice(["Left Half", "Maximize"]), "The shortcuts for Left Half and Maximize couldn't be set up")
+        XCTAssertEqual(shortcutNotice(["Left Half", "Center", "Restore"]), "The shortcuts for Left Half, Center and Restore couldn't be set up")
+        XCTAssertEqual(shortcutNotice(["A", "B", "C", "D"]), "4 shortcuts couldn't be set up")
+    }
+}

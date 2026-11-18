@@ -27,6 +27,17 @@ public func linkCommand(_ link: String) -> LinkCommand? {
     }
 }
 
+// The menu's line about shortcuts macOS wouldn't register, given their actions' titles: it
+// names them while they're few, so it's clear which actions are left to the menu.
+public func shortcutNotice(_ titles: [String]) -> String? {
+    switch titles.count {
+    case 0: return nil
+    case 1: return "The shortcut for \(titles[0]) couldn't be set up"
+    case 2, 3: return "The shortcuts for \(titles.dropLast().joined(separator: ", ")) and \(titles.last!) couldn't be set up"
+    default: return "\(titles.count) shortcuts couldn't be set up"
+    }
+}
+
 // A row of the menu's Move to Desktop submenu: a desktop to move the frontmost window to, or
 // (with no desktop) a display's name above its desktops, or the reason there's nothing to pick.
 public struct MoveChoice: Equatable {

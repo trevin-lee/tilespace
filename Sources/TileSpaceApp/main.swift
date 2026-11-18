@@ -103,8 +103,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(withTitle: "Shortcuts and drag snapping are off while Rectangle runs", action: nil, keyEquivalent: "")
             menu.addItem(withTitle: "Quit Rectangle", action: #selector(quitRectangle), keyEquivalent: "").target = self
             menu.addItem(.separator())
-        } else if !failed.isEmpty {
-            menu.addItem(withTitle: "\(failed.count) shortcuts couldn't be set up", action: nil, keyEquivalent: "")
+        } else if let notice = shortcutNotice(failed.map(\.title)) {
+            menu.addItem(withTitle: notice, action: nil, keyEquivalent: "")
             menu.addItem(.separator())
         }
         if !rectangleRunning, defaults.bool(forKey: "dragSnapOn"), macOSTiling {
