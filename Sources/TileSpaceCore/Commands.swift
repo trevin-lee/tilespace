@@ -72,7 +72,7 @@ func planMove(from home: String, desktop: Int, to target: Int, display: String?,
     if let display {
         guard let d = displays.first(where: { $0.uuid == display })
                 ?? displays.first(where: { name($0.uuid).lowercased().contains(display.lowercased()) }) else {
-            throw TileSpaceError("no display matches '\(display)'; `tilespace desktops` lists them")
+            throw TileSpaceError("no display matches '\(display)'; list the desktops to see the displays' names")
         }
         dest = d
     } else {
@@ -101,7 +101,7 @@ func planMove(from home: String, desktop: Int, to target: Int, display: String?,
     let to = showing == target ? nil : try shortcut(target)
     let back = to == nil || follow ? nil : try showing.map { n in
         guard offset + n <= maxDesktopShortcut else {
-            throw TileSpaceError("\(destName) is showing desktop \(n), which is desktop \(offset + n) counting across displays, and macOS only has shortcuts for the first \(maxDesktopShortcut), so TileSpace couldn't switch back to it after the move. Use --follow to stay on desktop \(target) instead.")
+            throw TileSpaceError("\(destName) is showing desktop \(n), which is desktop \(offset + n) counting across displays, and macOS only has shortcuts for the first \(maxDesktopShortcut), so TileSpace couldn't switch back to it after the move. Move the window with follow on, to stay on desktop \(target) instead.")
         }
         return offset + n
     }

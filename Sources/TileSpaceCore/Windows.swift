@@ -107,6 +107,8 @@ func windowTitles(of pid: pid_t) -> [Int: String] {
 // The window a command names: a window id, or text matched case-insensitively against
 // "<app> <title>". Windows on a showing desktop come first, frontmost first; one on a desktop
 // that isn't showing can't be reached through Accessibility, so that's an error saying where it is.
+// Errors here and in the other commands reach people at the command line and agents through
+// MCP alike, so they name things ("follow", "list the windows") rather than either's syntax.
 public func findWindow(_ q: String, in wins: [Win]? = nil) throws -> Win {
     let wins = wins ?? allWindows()
     let ql = q.lowercased()
@@ -114,7 +116,7 @@ public func findWindow(_ q: String, in wins: [Win]? = nil) throws -> Win {
         ?? wins.filter { "\($0.app) \($0.title)".lowercased().contains(ql) }
     if let w = matches.first(where: \.showing) { return w }
     guard let w = matches.first else {
-        throw TileSpaceError("no window matches '\(q)'; `tilespace windows` lists them")
+        throw TileSpaceError("no window matches '\(q)'; list the windows to see which there are")
     }
     throw TileSpaceError("\(w.label) is on desktop \(w.desktop) of \(w.displayName), which isn't showing. Switch to that desktop first.")
 }

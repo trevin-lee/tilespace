@@ -98,6 +98,6 @@ func shortcutOff(_ n: Int, _ more: String = "") -> TileSpaceError {
 func checkShortcuts(_ plan: MovePlan, hotKeys: [String: Any]?) throws {
     if let n = plan.switchTo, desktopShortcut(n, hotKeys: hotKeys) == nil { throw shortcutOff(n) }
     if let n = plan.switchBack, desktopShortcut(n, hotKeys: hotKeys) == nil {
-        throw shortcutOff(n, ", or use --follow to stay on the target desktop instead of switching back")
+        throw shortcutOff(n, ", or move the window with follow on, to stay on the target desktop instead of switching back")
     }
 }

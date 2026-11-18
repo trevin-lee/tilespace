@@ -63,7 +63,7 @@ final class DesktopShortcutTests: XCTestCase {
         for back in [["120": hotKey(true, key: 20), "118": hotKey(false)], ["120": hotKey(true, key: 20)]] {
             XCTAssertThrowsError(try checkShortcuts(plan, hotKeys: back)) {
                 XCTAssertTrue("\($0)".contains("\"Switch to Desktop 1\" is off"), "\($0)")
-                XCTAssertTrue("\($0)".contains("--follow"), "the way back is the only problem: \($0)")
+                XCTAssertTrue("\($0)".contains("with follow on"), "the way back is the only problem: \($0)")
             }
         }
         let follow = MovePlan(display: "M", park: "O", target: 3, switchTo: 3, switchBack: nil)
@@ -161,9 +161,10 @@ final class PlanMoveTests: XCTestCase {
     func testCantSwitchBackPastTheSixteenShortcuts() throws {
         let ten = DisplaySpaces(uuid: "M", spaces: Array(1...10), current: 1)
         let showing8 = DisplaySpaces(uuid: "O", spaces: Array(11...20), current: 18)   // desktop 18 overall
-        // the move itself could work: say that it's the way back, and that --follow skips it
+        // the move itself could work: say that it's the way back, and that following skips it,
+        // in words that fit the command line's --follow and the MCP tool's `follow` alike
         assertThrows("Odyssey G95NC is showing desktop 8, which is desktop 18", try plan(1, to: 2, display: "odyssey", displays: [ten, showing8]))
-        assertThrows("Use --follow to stay on desktop 2", try plan(1, to: 2, display: "odyssey", displays: [ten, showing8]))
+        assertThrows("with follow on, to stay on desktop 2", try plan(1, to: 2, display: "odyssey", displays: [ten, showing8]))
         XCTAssertEqual(try plan(1, to: 2, display: "odyssey", follow: true, displays: [ten, showing8])?.switchTo, 12)
     }
 }
