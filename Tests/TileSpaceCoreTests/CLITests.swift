@@ -61,3 +61,47 @@ final class CLITests: XCTestCase {
         assertRefused("bogus", "unknown command: bogus")
     }
 }
+
+final class LinkTests: XCTestCase {
+    func testSnapLinks() {
+        XCTAssertEqual(linkCommand("tilespace://execute-action?name=left-half"), .snap(.leftHalf))
+        XCTAssertEqual(linkCommand("tilespace://execute-action?name=last-three-fourths"), .snap(.lastThreeFourths))
+        XCTAssertNil(linkCommand("tilespace://execute-action?name=sideways"))
+        XCTAssertNil(linkCommand("tilespace://execute-action"))
+    }
+
+    func testMoveLinks() {
+        XCTAssertEqual(linkCommand("tilespace://move-to-desktop?desktop=3"), .move(desktop: 3, display: nil, follow: false))
+        XCTAssertEqual(linkCommand("tilespace://move-to-desktop?desktop=3&display=built-in&follow=true"),
+                       .move(desktop: 3, display: "built-in", follow: true))
+        XCTAssertEqual(linkCommand("tilespace://move-to-desktop?desktop=1&display=Odyssey%20G95NC"),
+                       .move(desktop: 1, display: "Odyssey G95NC", follow: false))
+        // a link that can't be understood does nothing, rather than something else than it says
+        for bad in ["tilespace://move-to-desktop", "tilespace://move-to-desktop?desktop=0", "tilespace://move-to-desktop?desktop=two",
+                    "tilespace://move-to-desktop?desktop=2&follow=yes", "tilespace://move?desktop=2", "rectangle://execute-action?name=left-half"] {
+            XCTAssertNil(linkCommand(bad), bad)
+        }
+    }
+}
+
+final class MoveMenuTests: XCTestCase {
+    let mac = DisplaySpaces(uuid: "M", spaces: [1, 2, 3], current: 2)
+    let odyssey = DisplaySpaces(uuid: "O", spaces: [11, 12], current: 11)
+    func name(_ uuid: String) -> String { uuid == "M" ? "Built-in Retina Display" : "Odyssey G95NC" }
+
+    func testListsEachDisplaysDesktopsUnderItsName() {
+        let rows = moveChoices(displays: [mac, odyssey], screenCount: 2, name: name)
+        XCTAssertEqual(rows.map(\.title), ["Built-in Retina Display", "Desktop 1", "Desktop 2 (showing)", "Desktop 3",
+                                           "Odyssey G95NC", "Desktop 1 (showing)", "Desktop 2"])
+        XCTAssertEqual(rows.map(\.desktop), [nil, 1, 2, 3, nil, 1, 2])
+        XCTAssertEqual(rows.map(\.display), [nil, "M", "M", "M", nil, "O", "O"])
+    }
+
+    func testSaysWhyThereIsNothingToPick() {
+        let one = moveChoices(displays: [mac], screenCount: 1, name: name)
+        XCTAssertEqual(one, [MoveChoice(title: "Needs a second display", display: nil, desktop: nil)])
+        let shared = moveChoices(displays: [DisplaySpaces(uuid: "Main", spaces: [1, 2], current: 1)], screenCount: 2, name: name)
+        XCTAssertEqual(shared.count, 1)
+        XCTAssertTrue(shared[0].title.contains("Displays have separate Spaces"))
+    }
+}

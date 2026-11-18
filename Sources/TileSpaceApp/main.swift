@@ -1,6 +1,7 @@
 // TileSpace: a menu-bar app for arranging windows, and the core that the `tilespace` command and
 // agents talk to through its MCP server: Rectangle-style snapping by keyboard and by dragging to
-// screen edges (each can be turned off in the menu), and moving windows between desktops.
+// screen edges (each can be turned off in the menu), and moving windows between desktops (from
+// the menu, a link, the command line or an agent).
 import AppKit
 import ApplicationServices
 import Carbon
@@ -49,7 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DispatchQueue.main.async { if self.rectangleRunning != self.yielding { self.updateShortcuts() } }
         }
         updateShortcuts()
-        // tilespace://execute-action?name=left-half, like Rectangle's rectangle:// links
+        // tilespace:// links
         NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(openURL(_:reply:)),
                                                      forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
         // asks for Accessibility access the first time
@@ -119,6 +120,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             menu.addItem(.separator())
         }
+        // moving the frontmost window to another desktop: the desktops as they are right now
+        let move = menu.addItem(withTitle: "Move to Desktop", action: nil, keyEquivalent: "")
+        move.submenu = NSMenu()
+        let choices = moveChoices(displays: managedSpaces(), screenCount: NSScreen.screens.count, name: displayName)
+        for c in choices {
+            guard let display = c.display, let desktop = c.desktop else {
+                // a display's name above its desktops, or the one line saying why there are none
+                move.submenu!.addItem(choices.count > 1 ? .sectionHeader(title: c.title)
+                                                        : NSMenuItem(title: c.title, action: nil, keyEquivalent: ""))
+                continue
+            }
+            let mi = move.submenu!.addItem(withTitle: c.title, action: #selector(moveToDesktop), keyEquivalent: "")
+            mi.target = self
+            mi.representedObject = ["display": display, "desktop": desktop] as [String: Any]
+        }
+        menu.addItem(.separator())
         for (title, key) in [("Keyboard Shortcuts", "shortcutsOn"), ("Snap by Dragging to Screen Edges", "dragSnapOn")] {
             let mi = menu.addItem(withTitle: title, action: #selector(toggleSetting), keyEquivalent: "")
             mi.target = self
@@ -141,11 +158,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let raw = mi.representedObject as? String, let a = SnapAction(rawValue: raw) { snapFocused(a) }
     }
 
+    @objc func moveToDesktop(_ mi: NSMenuItem) {
+        guard let c = mi.representedObject as? [String: Any], let display = c["display"] as? String,
+              let desktop = c["desktop"] as? Int else { return }
+        // once the menu has closed: a move takes a couple of seconds and switches desktops
+        DispatchQueue.main.async {
+            do { _ = try moveWindow(nil, toDesktop: desktop, display: display) } catch {
+                let alert = NSAlert()
+                alert.messageText = "Couldn't move the window"
+                alert.informativeText = "\(error)".prefix(1).uppercased() + "\(error)".dropFirst()
+                NSApp.activate(ignoringOtherApps: true)
+                alert.runModal()
+            }
+        }
+    }
+
+    // tilespace://execute-action?name=left-half, like Rectangle's rectangle:// links, and
+    // tilespace://move-to-desktop?desktop=3. There's nowhere to show an error, so it beeps.
     @objc func openURL(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
-        guard let s = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue, let url = URLComponents(string: s),
-              url.host == "execute-action", let name = url.queryItems?.first(where: { $0.name == "name" })?.value,
-              let action = SnapAction(cliName: name) else { return NSSound.beep() }
-        snapFocused(action)
+        switch event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue.flatMap(linkCommand) {
+        case .snap(let action):
+            snapFocused(action)
+        case .move(let desktop, let display, let follow):
+            do { _ = try moveWindow(nil, toDesktop: desktop, display: display, follow: follow) } catch {
+                NSLog("couldn't move the window: %@", "\(error)")
+                NSSound.beep()
+            }
+        case nil:
+            NSSound.beep()
+        }
     }
 
     @objc func copyURL() {

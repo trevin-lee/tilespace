@@ -134,6 +134,16 @@ final class PlanMoveTests: XCTestCase {
         assertThrows("has only 1 desktop", try plan(1, to: 2, display: "odyssey", displays: [mac, DisplaySpaces(uuid: "O", spaces: [11], current: 11)]))
     }
 
+    func testADisplayCanBeGivenByItsIdentifier() throws {
+        // what the menu passes: two displays of one model have the same name
+        let twin = DisplaySpaces(uuid: "T", spaces: [21, 22], current: 21)
+        let named: (String) -> String = { $0 == "M" ? "Built-in Retina Display" : "Odyssey G95NC" }
+        let p = try planMove(from: "M", desktop: 1, to: 2, display: "T", follow: false,
+                             displays: [mac, odyssey, twin], screenCount: 3, name: named)
+        XCTAssertEqual(p?.display, "T")
+        XCTAssertEqual(p?.target, 22)
+    }
+
     func testUnknownDisplay() {
         assertThrows("no display matches 'lg'", try plan(1, to: 2, display: "lg"))
     }

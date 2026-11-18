@@ -13,7 +13,9 @@ Window management for macOS that works with SIP on and with macOS's own desktops
   its own display to the target desktop, and moves it back to its exact frame. It checks the
   result with the read-only SkyLight call `SLSCopySpacesForWindows`. Because it works through
   another display, it needs a second display, with "Displays have separate Spaces" on (the
-  default): on a Mac with only one, it can't move windows.
+  default): on a Mac with only one, it can't move windows. You move a window from the menu,
+  with a link, from the command line or through MCP. There's no keyboard shortcut for it yet
+  ([#1](https://github.com/trevin-lee/tilespace/issues/1)).
 - **An MCP server and a command line**, so agents and scripts can list, snap and move windows.
 
 Everything runs in one menu-bar app, TileSpace.app, which starts at login. The `tilespace`
@@ -99,10 +101,14 @@ window keeps its own size and stays on the display, against the right or bottom 
 spot is there.
 
 The menu has every action, and switches to turn off Keyboard Shortcuts or Snap by Dragging
-to Screen Edges.
+to Screen Edges. Its Move to Desktop submenu lists each display's desktops, and moves the
+frontmost window to the one you pick.
 
-Scripts and launchers can run any action on the frontmost window with a link:
-`open -g "tilespace://execute-action?name=left-half"`. The action names are `left-half`,
+Scripts and launchers can do the same to the frontmost window with a link.
+`open -g "tilespace://move-to-desktop?desktop=3"` moves it to desktop 3 of its display; add
+`&display=built-in` for another display and `&follow=true` to stay on that desktop. A link
+has nowhere to show an error, so the app beeps if the move can't be done.
+`open -g "tilespace://execute-action?name=left-half"` runs a snap action. The action names are `left-half`,
 `right-half`, `top-half`, `bottom-half`, `top-left`, `top-right`, `bottom-left`,
 `bottom-right`, `first-third`, `center-third`, `last-third`, `first-two-thirds`,
 `center-two-thirds`, `last-two-thirds`, `first-fourth`, `last-three-fourths`, `maximize`,
