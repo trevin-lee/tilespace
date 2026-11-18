@@ -42,6 +42,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.button?.image = NSImage(systemSymbolName: "rectangle.split.2x1", accessibilityDescription: "TileSpace")
         item.menu = NSMenu()
         item.menu!.delegate = self
+        // One rule for anything else that snaps on the same input: leave it to the other one.
+        // macOS 15 and later tile dragged windows themselves unless that's turned off, so drags
+        // are left to macOS while it is on.
+        dragSnapper.yields = { [unowned self] in macOSTiling }
         // Rectangle gets the same key presses and drags, so both would snap (and the second snap
         // counts as a repeat). Leave shortcuts and drag snapping to it while it runs. It has no
         // Dock icon, and macOS posts no launch or quit notifications for such apps, so watch
@@ -59,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     var rectangleRunning: Bool { NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == rectangle } }
 
-    // macOS's own drag tiling (Desktop & Dock), read fresh so turning it off clears the notice
+    // macOS's own drag tiling (Desktop & Dock), read fresh so turning it off counts at once
     var macOSTiling: Bool {
         let domain = "com.apple.WindowManager" as CFString
         CFPreferencesAppSynchronize(domain)
@@ -104,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(.separator())
         }
         if !rectangleRunning, defaults.bool(forKey: "dragSnapOn"), macOSTiling {
-            menu.addItem(withTitle: "macOS also tiles windows dragged to screen edges", action: nil, keyEquivalent: "")
+            menu.addItem(withTitle: "Drag snapping is off while macOS tiles dragged windows", action: nil, keyEquivalent: "")
             menu.addItem(withTitle: "Turn Off macOS Tiling in System Settings…", action: #selector(openTilingSettings), keyEquivalent: "").target = self
             menu.addItem(.separator())
         }

@@ -43,6 +43,15 @@ cat > $rectangle/Contents/Info.plist <<'EOF'
 </plist>
 EOF
 codesign --force --sign - $rectangle
+# macOS 15 and later tile dragged windows themselves, and TileSpace leaves drags to macOS while
+# that's on. CI turns it off before this runs; don't change it on someone's own Mac.
+tiling=com.apple.WindowManager
+for key in EnableTilingByEdgeDrag EnableTopTilingByEdgeDrag; do
+    if [[ $(defaults read $tiling $key 2>/dev/null) != 0 ]]; then
+        echo "macOS's own edge tiling is on ($key): turn it off in System Settings > Desktop & Dock, as CI does"
+        exit 1
+    fi
+done
 if ! build/trusted; then
     echo "no Accessibility access: allow the app running this in System Settings > Privacy & Security > Accessibility"
     exit 1
@@ -50,7 +59,7 @@ fi
 
 state=$(mktemp)
 build/TestWindow $state & win=$!
-trap 'kill $win 2>/dev/null; pkill -x TileSpace; pkill -x Rectangle' EXIT
+trap 'kill $win 2>/dev/null; pkill -x TileSpace; pkill -x Rectangle; defaults write $tiling EnableTopTilingByEdgeDrag -bool false' EXIT
 sleep 2
 
 failed=0
@@ -207,6 +216,23 @@ reset_window
 drag_to $(( sx + sw - 1 )) $(( sy + sh / 2 )) esc
 read_state
 check "Esc during a drag: no snap" $wx $wy $rw $rh
+
+if (( ${$(sw_vers -productVersion)%%.*} >= 15 )); then
+    echo "--- macOS's own tiling"
+    # While macOS tiles dragged windows, TileSpace leaves them alone, from the next drag on. Only
+    # the menu-bar setting is turned on here, so macOS does nothing with a drag to the left edge.
+    reset_window
+    defaults write $tiling EnableTopTilingByEdgeDrag -bool true
+    sleep 1
+    drag_to $(( sx + 1 )) $(( sy + sh / 2 ))
+    read_state
+    check "drag to the left edge while macOS tiling is on: no snap" $wx $wy $rw $rh
+    defaults write $tiling EnableTopTilingByEdgeDrag -bool false
+    sleep 1
+    reset_window
+    drag_to $(( sx + 1 )) $(( sy + sh / 2 ))
+    check "drag to the left edge once it's off again: left half" $vx $vy $(( vw / 2 )) $vh
+fi
 
 echo "--- shortcuts"
 reset_window

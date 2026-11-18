@@ -52,11 +52,12 @@ would otherwise act on every key press and drag. TileSpace's menu has a Quit Rec
 The menu, the command line and the MCP tools still work while Rectangle runs.
 
 macOS 15 and later tile windows dragged to screen edges too, and that's on by default. Its
-layouts differ from TileSpace's (the top edge fills the screen, corners are quarters), so a
-drag shows two previews and the window can end up in either place. Turn off "Drag windows to
-screen edges to tile" and "Drag windows to menu bar to fill screen" in System Settings >
-Desktop & Dock, or TileSpace's Snap by Dragging to Screen Edges. While both apps snap by
-dragging, TileSpace's menu says so and links to the setting.
+layouts differ from TileSpace's (the top edge fills the screen, corners are quarters), and
+both would act on every drag. So TileSpace treats it as it treats Rectangle: while macOS's
+tiling is on, TileSpace leaves dragged windows to it. To snap by dragging with TileSpace,
+turn off "Drag windows to screen edges to tile" and "Drag windows to menu bar to fill screen"
+in System Settings > Desktop & Dock. Until then TileSpace's menu says that drag snapping is
+off, and links to the setting. Shortcuts aren't affected.
 
 **To update**, pull and run `scripts/build-app.sh --install` again. It quits the running app,
 replaces it and starts the new one. With an ad-hoc signature, allow Accessibility access again

@@ -8,6 +8,9 @@ final class DragSnapper {
     private let snapper: Snapper
     private let footprint = Footprint()
     private var monitor: Any?
+    // Whether to leave a drag alone because something else snaps dragged windows right now.
+    // Asked as each drag starts, so a change in System Settings counts from the next drag.
+    var yields: () -> Bool = { false }
 
     // the drag in progress
     private var el: AXUIElement?, id: Int?, startFrame: CGRect?
@@ -37,6 +40,7 @@ final class DragSnapper {
         switch e.type {
         case .leftMouseDown:
             reset()
+            guard !yields() else { return }
             el = window(at: p)
             id = el.flatMap(windowID(of:))
             startFrame = id.flatMap(windowFrame)

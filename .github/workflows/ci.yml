@@ -55,6 +55,12 @@ jobs:
             printf '%s: %s\n' $n "$(plutil -extract AppleSymbolicHotKeys.$n json -o - - <<<"$hk" 2>&1)"
           done
           defaults read com.apple.symbolichotkeys AppleSymbolicHotKeys 2>&1 | grep -A8 -E '^ +118 = ' || echo "no entry for 118"
+      - name: Turn off macOS's own edge tiling
+        # macOS 15 and later tile dragged windows unless these are off, and TileSpace leaves
+        # drags to macOS while either is on
+        run: |
+          defaults write com.apple.WindowManager EnableTilingByEdgeDrag -bool false
+          defaults write com.apple.WindowManager EnableTopTilingByEdgeDrag -bool false
       - name: Integration test
         run: Tests/Integration/run.sh
       - name: Screenshot and app log on failure
