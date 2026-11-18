@@ -4,8 +4,9 @@
 import Foundation
 import Network
 
-// TILE on a phone keypad. TILESPACE_PORT overrides it (for tests).
-public let serverPort: UInt16 = ProcessInfo.processInfo.environment["TILESPACE_PORT"].flatMap(UInt16.init) ?? 8453
+// TILE on a phone keypad. Fixed, so the command line and every MCP client know where the app
+// is without being told.
+public let serverPort: UInt16 = 8453
 public var serverURL: String { "http://127.0.0.1:\(serverPort)/mcp" }
 
 public struct HTTPRequest {
@@ -75,6 +76,12 @@ func response(_ status: Int, _ body: Data = Data(), type: String = "application/
     return Data(head.utf8) + body
 }
 
+// Why the server couldn't start, for the menu. The usual reason has a remedy, so name it.
+func startFailure(_ error: NWError, port: UInt16) -> String {
+    if case .posix(.EADDRINUSE) = error { return "another program is using port \(port)" }
+    return "\(error)"
+}
+
 public final class LocalServer {
     public typealias Handler = (_ body: Data, _ respond: @escaping (Data?) -> Void) -> Void
     private let port: UInt16
@@ -89,18 +96,20 @@ public final class LocalServer {
         self.handler = handler
     }
 
-    // `ready` is called on the main queue: nil once listening, or why it couldn't.
+    // `ready` is called on the main queue: nil once listening, or why it couldn't. Can be
+    // called again after a failure, to try once more.
     public func start(ready: @escaping (String?) -> Void) {
+        listener?.cancel()
         let params = NWParameters.tcp
         // bound to 127.0.0.1 itself, so it's never reachable from the network
         params.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: NWEndpoint.Port(rawValue: port)!)
         params.allowLocalEndpointReuse = true
         do {
             let l = try NWListener(using: params)
-            l.stateUpdateHandler = { state in
+            l.stateUpdateHandler = { [port] state in
                 switch state {
                 case .ready: DispatchQueue.main.async { ready(nil) }
-                case .failed(let e): DispatchQueue.main.async { ready("\(e)") }
+                case .failed(let e), .waiting(let e): DispatchQueue.main.async { ready(startFailure(e, port: port)) }
                 default: break
                 }
             }

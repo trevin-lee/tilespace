@@ -143,6 +143,23 @@ final class LocalServerTests: XCTestCase {
         return out
     }
 
+    func testSaysWhenAnotherProgramHasThePort() {
+        let port = UInt16.random(in: 30000..<50000)
+        let first = LocalServer(port: port) { _, respond in respond(nil) }
+        let listening = expectation(description: "listening")
+        first.start { error in XCTAssertNil(error); listening.fulfill() }
+        wait(for: [listening], timeout: 5)
+
+        let second = LocalServer(port: port) { _, respond in respond(nil) }
+        let refused = expectation(description: "refused")
+        refused.assertForOverFulfill = false
+        second.start { error in
+            XCTAssertEqual(error, "another program is using port \(port)")
+            refused.fulfill()
+        }
+        wait(for: [refused], timeout: 5)
+    }
+
     func testServesOverRealHTTP() {
         let port = UInt16.random(in: 30000..<50000)
         let mcp = MCPServer { _, _ in ToolResult("ok") }

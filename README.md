@@ -182,6 +182,12 @@ tool:
 | `snap_window` | `tilespace snap` | Any snap action, on a window or the focused one; returns the frame the window ended up with |
 | `move_window_to_desktop` | `tilespace move` | Move a window, or the focused one, to desktop N, on its own display or another |
 
+The port is always 8453, so the command line and every client know where to find the app. If
+another program has that port, TileSpace's menu shows "MCP Server: off: another program is
+using port 8453", and the command line and MCP clients can't reach the app. Shortcuts, drag
+snapping and the menu still work. Quit the other program (`lsof -nP -iTCP:8453 -sTCP:LISTEN`
+shows which it is) and the server starts within a few seconds.
+
 The server listens only on 127.0.0.1, so nothing else on the network can reach it. Any
 program running as you can use it, the same as it could use Accessibility directly, but web
 pages can't. TileSpace refuses requests with an `Origin` header, which browsers always send

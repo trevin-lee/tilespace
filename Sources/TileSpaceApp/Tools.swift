@@ -14,12 +14,24 @@ final class Tools {
 
     init(snapper: Snapper) { self.snapper = snapper }
 
+    // If the port is taken, keep trying: the server comes up by itself once the other program
+    // has quit, and the menu says what's in the way meanwhile.
     func start() {
         server.start { [weak self] error in
-            self?.status = error.map { "couldn't start: \($0)" } ?? "on at \(serverURL)"
-            if let error { NSLog("MCP server couldn't start on port %d: %@", serverPort, error) }
+            guard let self else { return }
+            let wasOff = status.hasPrefix("off")
+            status = error.map { "off: \($0)" } ?? "on at \(serverURL)"
+            guard let error, !retrying else { return }
+            if !wasOff { NSLog("MCP server couldn't start on port %d: %@", serverPort, error) }
+            retrying = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+                guard let self else { return }
+                retrying = false
+                if status.hasPrefix("off") { start() }
+            }
         }
     }
+    private var retrying = false
 
     private func call(_ tool: Tool, _ args: [String: Any]) -> ToolResult {
         do {
