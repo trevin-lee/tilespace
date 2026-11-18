@@ -2,6 +2,7 @@
 // sessions. The CLI uses the same tools, so both go through the app.
 import Foundation
 
+// The one place the version is written: scripts/build-app.sh reads it for the app's Info.plist.
 public let tileSpaceVersion = "0.1.0"
 
 public struct ToolResult {

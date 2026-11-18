@@ -7,7 +7,7 @@ public enum CLICommand: Equatable {
     case snap(action: String, window: String?)
     case move(desktop: Int, window: String?, display: String?, follow: Bool)
     case mcp, mcpAdd, mcpRemove
-    case help
+    case help, version
 }
 
 public let snapUsage = "usage: tilespace snap <action> [<window>]"
@@ -49,6 +49,7 @@ public func parseCommand(_ args: [String]) throws -> CLICommand {
     case "windows", "list": return try none(.windows)
     case "desktops", "spaces": return try none(.desktops)
     case "help", "-h", "--help": return .help
+    case "version", "--version": return try none(.version)
     case "snap":
         guard let action = words.first, SnapAction(cliName: action) != nil else {
             throw TileSpaceError("\(snapUsage)\nactions: " + SnapAction.allCases.map(\.cliName).joined(separator: " "))

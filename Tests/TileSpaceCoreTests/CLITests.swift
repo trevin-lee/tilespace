@@ -58,6 +58,7 @@ final class CLITests: XCTestCase {
         // "install" is what's done to the app; adding it to Claude Code has one name everywhere
         assertRefused("mcp install", "usage: tilespace mcp [add | remove]")
         for help in ["", "help", "-h", "--help"] { XCTAssertEqual(try parse(help), .help) }
+        XCTAssertEqual(try parse("--version"), .version)
         assertRefused("snap sideways", "actions: left-half")
         assertRefused("mcp sideways", "usage: tilespace mcp")
         assertRefused("bogus", "unknown command: bogus")

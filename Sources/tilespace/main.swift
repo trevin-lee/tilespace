@@ -29,6 +29,7 @@ let usage = """
                                                 named; needs a second display, "Displays have separate Spaces" on,
                                                 and macOS's "Switch to Desktop N" shortcuts on (they ship off)
            tilespace mcp [add | remove]         the MCP server's address; add it to or remove it from Claude Code
+           tilespace --version
 
     <window> comes last, and can be several words. It's a window id from `tilespace windows`, or
     text matched against the app name and window title. It has to be on a desktop that's showing
@@ -126,4 +127,6 @@ case .mcpAdd, .mcpRemove:
     print(output)
 case .help:
     print(usage)
+case .version:
+    print("tilespace \(tileSpaceVersion)")
 }

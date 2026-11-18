@@ -125,6 +125,7 @@ tilespace snap <action> [<window>]               # e.g. tilespace snap first-thi
 tilespace move <desktop> [<window>]              # move a window to desktop N on its display
 tilespace move <desktop> [<window>] --display built-in   # ...or on another display
 tilespace move <desktop> [<window>] --follow     # ...and stay on that desktop
+tilespace --version
 ```
 
 `tilespace windows` prints one window per line: display and desktop number, window id, app,

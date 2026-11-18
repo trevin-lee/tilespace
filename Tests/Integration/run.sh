@@ -130,6 +130,9 @@ $tilespace --help | grep -q "usage: tilespace" && pass "tilespace --help" || fai
 $tilespace --help | grep -q "needs a second display" && pass "tilespace --help says move needs a second display" || fail "tilespace --help doesn't say move needs a second display"
 $tilespace --help | grep -q "Displays have separate Spaces" && pass "tilespace --help says move needs separate Spaces per display" || fail "tilespace --help doesn't say move needs separate Spaces per display"
 $tilespace --help | grep -q '"Switch to Desktop N" shortcuts on' && pass "tilespace --help says move needs the desktop shortcuts on" || fail "tilespace --help doesn't say move needs the desktop shortcuts on"
+# the command and the app are one version, written once
+[[ $($tilespace --version) == "tilespace $(defaults read $PWD/build/TileSpace.app/Contents/Info CFBundleShortVersionString)" ]] &&
+    pass "tilespace --version is the app's version: $($tilespace --version)" || fail "tilespace --version: $($tilespace --version)"
 $tilespace bogus 2>/dev/null && fail "tilespace bogus should fail" || pass "tilespace bogus fails"
 # the window's title comes from Accessibility: the app has no Screen Recording access
 windows=$($tilespace windows) || fail "tilespace windows: $windows"
