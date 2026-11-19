@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         [.leftHalf, .rightHalf, .topHalf, .bottomHalf],
         [.topLeft, .topRight, .bottomLeft, .bottomRight],
         [.firstThird, .centerThird, .lastThird, .firstTwoThirds, .centerTwoThirds, .lastTwoThirds],
-        [.firstFourth, .lastThreeFourths],
+        [.firstFourth, .secondFourth, .thirdFourth, .lastFourth, .firstThreeFourths, .lastThreeFourths],
         [.maximize, .maximizeHeight, .center, .larger, .smaller, .restore],
         [.previousDisplay, .nextDisplay],
     ]

@@ -9,7 +9,7 @@ public enum SnapAction: String, CaseIterable {
     case topLeft, topRight, bottomLeft, bottomRight
     case firstThird, centerThird, lastThird
     case firstTwoThirds, centerTwoThirds, lastTwoThirds
-    case firstFourth, lastThreeFourths
+    case firstFourth, secondFourth, thirdFourth, lastFourth, firstThreeFourths, lastThreeFourths
     case maximize, maximizeHeight, center, larger, smaller, restore
     case previousDisplay, nextDisplay
 
@@ -30,6 +30,10 @@ public enum SnapAction: String, CaseIterable {
         case .centerTwoThirds: "Center Two Thirds"
         case .lastTwoThirds: "Last Two Thirds"
         case .firstFourth: "First Fourth"
+        case .secondFourth: "Second Fourth"
+        case .thirdFourth: "Third Fourth"
+        case .lastFourth: "Last Fourth"
+        case .firstThreeFourths: "First Three Fourths"
         case .lastThreeFourths: "Last Three Fourths"
         case .maximize: "Maximize"
         case .maximizeHeight: "Maximize Height"
@@ -52,7 +56,7 @@ public enum SnapAction: String, CaseIterable {
     // actions that put a window in a fixed spot on a display, so they can be recognized later
     static let placements: [SnapAction] = [.leftHalf, .rightHalf, .topHalf, .bottomHalf,
         .topLeft, .topRight, .bottomLeft, .bottomRight, .firstThird, .centerThird, .lastThird,
-        .firstTwoThirds, .centerTwoThirds, .lastTwoThirds, .firstFourth, .lastThreeFourths, .maximize]
+        .firstTwoThirds, .centerTwoThirds, .lastTwoThirds, .firstFourth, .secondFourth, .thirdFourth, .lastFourth, .firstThreeFourths, .lastThreeFourths, .maximize]
 }
 
 // The last snap applied to a window: the key pressed and where it actually put the window.
@@ -141,6 +145,10 @@ public func placement(_ a: SnapAction, in v: CGRect) -> CGRect {
     case .centerTwoThirds: return along(1.0 / 6, 5.0 / 6)
     case .lastTwoThirds: return along(1.0 / 3, 1)
     case .firstFourth: return along(0, 0.25)
+    case .secondFourth: return along(0.25, 0.5)
+    case .thirdFourth: return along(0.5, 0.75)
+    case .lastFourth: return along(0.75, 1)
+    case .firstThreeFourths: return along(0, 0.75)
     case .lastThreeFourths: return along(0.25, 1)
     default: return v
     }

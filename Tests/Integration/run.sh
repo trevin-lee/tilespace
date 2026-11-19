@@ -193,6 +193,13 @@ snap_to last-third $t         $(( vx + t2 )) $vy $(( vw - t2 )) $vh
 snap_to first-two-thirds $t   $vx $vy $t2 $vh
 snap_to center-two-thirds $t  $(( vx + vw / 6 )) $vy $(( vw * 5 / 6 - vw / 6 )) $vh
 snap_to last-two-thirds $t    $(( vx + t1 )) $vy $(( vw - t1 )) $vh
+q1=$(( vw / 4 )) q2=$(( vw / 2 )) q3=$(( vw * 3 / 4 ))   # where the first three fourths end
+snap_to first-fourth $t       $vx $vy $q1 $vh
+snap_to second-fourth $t      $(( vx + q1 )) $vy $(( q2 - q1 )) $vh
+snap_to third-fourth $t       $(( vx + q2 )) $vy $(( q3 - q2 )) $vh
+snap_to last-fourth $t        $(( vx + q3 )) $vy $(( vw - q3 )) $vh
+snap_to first-three-fourths $t $vx $vy $q3 $vh
+snap_to last-three-fourths $t $(( vx + q1 )) $vy $(( vw - q1 )) $vh
 snap_to maximize $t           $vx $vy $vw $vh
 # Smaller takes 30pt off a maximized window's width and height, half from each side; Larger
 # puts them back

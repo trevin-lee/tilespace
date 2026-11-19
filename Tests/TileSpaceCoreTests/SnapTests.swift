@@ -311,3 +311,34 @@ final class MacOSTilingTests: XCTestCase {
         XCTAssertFalse(macOSTilesByDrag(macOSVersion: 26) { off[$0] })
     }
 }
+
+final class FourthsTests: XCTestCase {
+    func testFourColumnsTileTheDisplayWithNoGapsOrOverlap() {
+        // an odd width, so the rounding has to line up
+        let v = CGRect(x: 0, y: 25, width: 5121, height: 1415)
+        let cols = [SnapAction.firstFourth, .secondFourth, .thirdFourth, .lastFourth].map { placement($0, in: v) }
+        XCTAssertEqual(cols.map(\.minX), [0, 1280, 2560, 3840])
+        for (a, b) in zip(cols, cols.dropFirst()) { XCTAssertEqual(a.maxX, b.minX) }
+        XCTAssertEqual(cols.last!.maxX, v.maxX)
+        XCTAssertTrue(cols.allSatisfy { $0.minY == v.minY && $0.height == v.height })
+        XCTAssertEqual(placement(.firstThreeFourths, in: v), CGRect(x: 0, y: 25, width: 3840, height: 1415))
+        XCTAssertEqual(placement(.lastThreeFourths, in: v), CGRect(x: 1280, y: 25, width: 3841, height: 1415))
+    }
+
+    func testStackOnAPortraitDisplay() {
+        let v = CGRect(x: 0, y: 0, width: 1080, height: 1920)
+        XCTAssertEqual(placement(.secondFourth, in: v), CGRect(x: 0, y: 480, width: 1080, height: 480))
+        XCTAssertEqual(placement(.lastFourth, in: v), CGRect(x: 0, y: 1440, width: 1080, height: 480))
+    }
+
+    func testAWindowInTheThirdFourthIsRecognized() {
+        let s = Screen(name: "d", frame: CGRect(x: 0, y: 0, width: 2000, height: 1000), visible: CGRect(x: 0, y: 25, width: 2000, height: 975))
+        XCTAssertEqual(recognize(placement(.thirdFourth, in: s.visible), on: s), .thirdFourth)
+    }
+
+    func testCommandNames() {
+        XCTAssertEqual(["first-fourth", "second-fourth", "third-fourth", "last-fourth", "first-three-fourths", "last-three-fourths"]
+                        .compactMap(SnapAction.init(cliName:)),
+                       [.firstFourth, .secondFourth, .thirdFourth, .lastFourth, .firstThreeFourths, .lastThreeFourths])
+    }
+}

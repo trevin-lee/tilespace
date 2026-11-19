@@ -2,8 +2,8 @@
 
 Window management for macOS that works with SIP on and with macOS's own desktops (Spaces).
 
-- **Rectangle-style snapping**: halves, corners, thirds, two-thirds, first fourth and last
-  three fourths, maximize, maximize height, center, larger/smaller, restore, and
+- **Rectangle-style snapping**: halves, corners, thirds, two-thirds, fourths, three-fourths,
+  maximize, maximize height, center, larger/smaller, restore, and
   previous/next display. Most have Rectangle's Ctrl+Option shortcuts, and you can drag a
   window to a screen edge or corner. Repeating Left or Right Half moves the window to the next
   display over. Repeating First or Last Third cycles through the thirds.
@@ -89,8 +89,8 @@ defaults delete com.trevinlee.tilespace         # its settings; a later install 
 | ⌃⌥⌘ ← → | Previous, next display |
 
 The shortcuts are fixed: they can't be changed, only switched off all together in the menu.
-First Fourth and Last Three Fourths have no shortcut. They're in the menu, in the drag areas
-below, and available as links and commands. If macOS wouldn't let TileSpace have one of the
+The fourths and three-fourths have none. They're in the menu and available as links and
+commands, and two of them are drag areas below. If macOS wouldn't let TileSpace have one of the
 shortcuts, the menu names it, and that action still works from the menu.
 
 You can also drag a window to a screen edge or corner. A preview shows where it will go, and
@@ -123,7 +123,8 @@ has nowhere to show an error, so the app beeps if the move can't be done.
 `open -g "tilespace://execute-action?name=left-half"` runs a snap action. The action names are `left-half`,
 `right-half`, `top-half`, `bottom-half`, `top-left`, `top-right`, `bottom-left`,
 `bottom-right`, `first-third`, `center-third`, `last-third`, `first-two-thirds`,
-`center-two-thirds`, `last-two-thirds`, `first-fourth`, `last-three-fourths`, `maximize`,
+`center-two-thirds`, `last-two-thirds`, `first-fourth`, `second-fourth`, `third-fourth`,
+`last-fourth`, `first-three-fourths`, `last-three-fourths`, `maximize`,
 `maximize-height`, `center`, `larger`, `smaller`, `restore`, `previous-display` and
 `next-display`.
 
