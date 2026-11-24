@@ -17,6 +17,8 @@ public enum Tool: String, CaseIterable {
     case snapWindow = "snap_window"
     case moveWindowToDesktop = "move_window_to_desktop"
     case switchDesktop = "switch_desktop"
+    case addDesktop = "add_desktop"
+    case removeDesktop = "remove_desktop"
 
     static let windowArg: [String: Any] = [
         "type": "string",
@@ -68,6 +70,33 @@ public enum Tool: String, CaseIterable {
                     "required": ["desktop"],
                 ],
                 "annotations": ["readOnlyHint": false, "destructiveHint": false],
+            ]
+        case .addDesktop:
+            return [
+                "name": rawValue, "title": "Add a desktop",
+                "description": "Add a desktop (Space) to a display, after its last one: the display `display` names, or else the frontmost window's. Mission Control shows for a moment while it's added. Returns the new desktop's number.",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "display": ["type": "string", "description": "Part of a display's name, e.g. \"built-in\". Leave out for the frontmost window's display."],
+                    ],
+                ],
+                "annotations": ["readOnlyHint": false, "destructiveHint": false],
+            ]
+        case .removeDesktop:
+            return [
+                "name": rawValue, "title": "Remove a desktop",
+                "description": "Remove desktop N (from 1, as in list_desktops) of a display: the one `display` names, or else the frontmost window's. Never removes the desktop that's showing or a display's last one. A desktop with windows on it is refused, naming them, unless `move_windows` is true; then macOS moves them to another desktop. Mission Control shows for a moment.",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "desktop": ["type": "integer", "minimum": 1],
+                        "display": ["type": "string", "description": "Part of a display's name, e.g. \"built-in\". Leave out for the frontmost window's display."],
+                        "move_windows": ["type": "boolean", "description": "Remove it even with windows on it; macOS moves them to another desktop. Default false."],
+                    ],
+                    "required": ["desktop"],
+                ],
+                "annotations": ["readOnlyHint": false, "destructiveHint": true],
             ]
         case .switchDesktop:
             return [

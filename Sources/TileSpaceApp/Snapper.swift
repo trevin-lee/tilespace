@@ -33,6 +33,10 @@ let shortcuts: [SnapAction: Shortcut] = {
     ]
 }()
 
+// Adding a desktop to the frontmost window's display, and removing that display's last desktop.
+let addDesktopShortcut = Shortcut(key: UInt32(kVK_ANSI_Equal), mods: [.control, .option, .command])
+let removeDesktopShortcut = Shortcut(key: UInt32(kVK_ANSI_Minus), mods: [.control, .option, .command])
+
 final class Snapper {
     private struct Record { let last: LastSnap; let frame: CGRect; let restore: CGRect }
     private var records: [Int: Record] = [:]   // by window id

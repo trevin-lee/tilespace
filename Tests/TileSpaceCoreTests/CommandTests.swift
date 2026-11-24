@@ -296,3 +296,60 @@ final class PlanSwitchTests: XCTestCase {
         XCTAssertEqual(try plan(6, display: "odyssey", displays: [ten, big]).shortcut, 16)
     }
 }
+
+final class DesktopEditTests: XCTestCase {
+    let mac = DisplaySpaces(uuid: "M", spaces: [1, 2, 3], current: 2, all: [1, 2, 50, 3])   // a full-screen app's space at 50
+    let dell = DisplaySpaces(uuid: "D", spaces: [11, 12], current: 11)
+    func name(_ uuid: String) -> String { uuid == "M" ? "Built-in Retina Display" : "DELL U4924DW" }
+    func win(_ id: Int, display: String, desktop: Int) -> Win {
+        Win(id: id, pid: 1, app: "Zen", title: "Docs", frame: .zero, display: display, displayName: name(display), desktop: desktop, showing: false)
+    }
+
+    func remove(_ n: Int, display: String? = nil, home: String? = "M", windows: [Win] = [], moveWindows: Bool = false) throws -> RemovePlan {
+        try planRemoveDesktop(n, display: display, home: home, displays: [mac, dell], windows: windows, moveWindows: moveWindows, name: name)
+    }
+
+    func assertRefused(_ message: String, _ f: @autoclosure () throws -> RemovePlan, line: UInt = #line) {
+        XCTAssertThrowsError(try f(), line: line) { XCTAssertTrue("\($0)".contains(message), "\($0)", line: line) }
+    }
+
+    func testAddGoesToTheDisplayNamedOrTheFrontmostWindowsOne() throws {
+        XCTAssertEqual(try planAddDesktop(display: "dell", home: "M", displays: [mac, dell], name: name).uuid, "D")
+        XCTAssertEqual(try planAddDesktop(display: nil, home: "D", displays: [mac, dell], name: name).uuid, "D")
+        XCTAssertThrowsError(try planAddDesktop(display: nil, home: nil, displays: [mac, dell], name: name))
+    }
+
+    func testRemovesByItsPlaceInMissionControlsRow() throws {
+        // desktop 3 comes after a full-screen app's space, so it's the 4th button
+        XCTAssertEqual(try remove(3), RemovePlan(display: "M", space: 3, button: 3))
+        XCTAssertEqual(try remove(1), RemovePlan(display: "M", space: 1, button: 0))
+        XCTAssertEqual(try remove(2, display: "dell"), RemovePlan(display: "D", space: 12, button: 1))
+    }
+
+    func testNeverTheShowingOneOrTheLast() {
+        assertRefused("is showing", try remove(2))
+        assertRefused("is showing", try remove(1, display: "dell"))
+        let one = DisplaySpaces(uuid: "D", spaces: [11], current: 11)
+        XCTAssertThrowsError(try planRemoveDesktop(1, display: "dell", home: nil, displays: [mac, one], windows: [], moveWindows: false, name: name)) {
+            XCTAssertTrue("\($0)".contains("only desktop"), "\($0)")
+        }
+        assertRefused("has only 3 desktops", try remove(4))
+        assertRefused("starting at 1", try remove(0))
+    }
+
+    func testADesktopWithWindowsNeedsMoveWindows() throws {
+        let wins = [win(7, display: "M", desktop: 3), win(8, display: "M", desktop: 3), win(9, display: "D", desktop: 2)]
+        XCTAssertThrowsError(try remove(3, windows: wins)) {
+            XCTAssertTrue("\($0)".contains("has 2 windows on it: Zen — Docs (7), Zen — Docs (8)"), "\($0)")
+        }
+        XCTAssertEqual(try remove(3, windows: wins, moveWindows: true).space, 3)
+        // windows on other desktops don't count
+        XCTAssertEqual(try remove(1, windows: wins).space, 1)
+    }
+
+    func testReadsTheDesktopAMissionControlButtonNames() {
+        XCTAssertEqual(desktopNumber(in: "Desktop 3"), 3)
+        XCTAssertNil(desktopNumber(in: "Zen"))
+        XCTAssertNil(desktopNumber(in: "Desktop"))
+    }
+}

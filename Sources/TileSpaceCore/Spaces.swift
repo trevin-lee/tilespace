@@ -18,6 +18,8 @@ public struct DisplaySpaces {
     public let uuid: String
     public let spaces: [Int]   // ManagedSpaceIDs of the user desktops, in order
     public let current: Int    // the one showing
+    // every space of the display in Mission Control's order, full-screen apps' included (nil: the same as `spaces`)
+    public var all: [Int]? = nil
 }
 
 // What the two Copy functions return, owned, so that it's freed once it's let go.
@@ -29,10 +31,12 @@ func copySpaces(of windowID: Int) -> CFArray? { spacesForWindows(conn, 7, [windo
 public func managedSpaces() -> [DisplaySpaces] {
     let raw = copyDisplaySpaces() as? [[String: Any]] ?? []
     return raw.map { d in
-        let user = (d["Spaces"] as? [[String: Any]] ?? []).filter { ($0["type"] as? Int) == 0 }
+        let every = d["Spaces"] as? [[String: Any]] ?? []
+        let user = every.filter { ($0["type"] as? Int) == 0 }
         let cur = (d["Current Space"] as? [String: Any])?["ManagedSpaceID"] as? Int ?? -1
         return DisplaySpaces(uuid: d["Display Identifier"] as? String ?? "?",
-                             spaces: user.compactMap { $0["ManagedSpaceID"] as? Int }, current: cur)
+                             spaces: user.compactMap { $0["ManagedSpaceID"] as? Int }, current: cur,
+                             all: every.compactMap { $0["ManagedSpaceID"] as? Int })
     }
 }
 

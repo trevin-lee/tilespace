@@ -327,4 +327,29 @@ sleep 2
 build/input key 124 ctrl opt
 check "Ctrl+Option+Right once Rectangle has quit: right half" $(( vx + vw / 2 )) $vy $(( vw - vw / 2 )) $vh
 
+echo "--- adding and removing desktops"
+# through Mission Control, which comes up for a moment each time. The runner starts with one
+# desktop. These count the main display's desktops in `tilespace desktops`.
+desktops() { $tilespace desktops | head -1 | awk -F': ' '{ print split($2, d, " ") }'; }
+[[ $(desktops) == 1 ]] && pass "one desktop to start with" || fail "expected one desktop to start with: $($tilespace desktops)"
+expect_error "remove the only desktop" "only desktop" desktop remove 1
+said=$($tilespace desktop add 2>&1) && [[ $(desktops) == 2 ]] &&
+    pass "tilespace desktop add: $said; $($tilespace desktops)" || fail "tilespace desktop add: $said; $($tilespace desktops)"
+expect_error "remove the desktop that's showing" "is showing" desktop remove 1
+expect_error "remove a desktop past the last" "has only 2 desktops" desktop remove 3
+said=$($tilespace desktop remove 2 2>&1) && [[ $(desktops) == 1 ]] &&
+    pass "tilespace desktop remove 2: $said" || fail "tilespace desktop remove 2: $said; $($tilespace desktops)"
+# the shortcuts: Ctrl+Option+Command+= adds one to the frontmost window's display, and
+# Ctrl+Option+Command+- removes its last one
+build/input key 24 ctrl opt cmd
+for i in {1..20}; do [[ $(desktops) == 2 ]] && break; sleep 0.25; done
+[[ $(desktops) == 2 ]] && pass "Ctrl+Option+Command+= adds a desktop" || fail "Ctrl+Option+Command+= didn't add a desktop: $($tilespace desktops)"
+build/input key 27 ctrl opt cmd
+for i in {1..20}; do [[ $(desktops) == 1 ]] && break; sleep 0.25; done
+[[ $(desktops) == 1 ]] && pass "Ctrl+Option+Command+- removes the last desktop" || fail "Ctrl+Option+Command+- didn't remove it: $($tilespace desktops)"
+# Mission Control is put away again, so the test window can still be snapped
+reset_window
+$tilespace snap left-half "tilespace test" >/dev/null 2>&1
+check "snap after the desktop changes: Mission Control is gone" $vx $vy $(( vw / 2 )) $vh
+
 exit $failed

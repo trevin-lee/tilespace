@@ -59,6 +59,20 @@ final class CLITests: XCTestCase {
         assertRefused("snap left-half --display built-in", "tilespace snap has no option --display")
     }
 
+    func testDesktopAddAndRemove() throws {
+        XCTAssertEqual(try parse("desktop add"), .addDesktop(display: nil))
+        XCTAssertEqual(try parse("desktop add --display dell"), .addDesktop(display: "dell"))
+        XCTAssertEqual(try parse("desktop remove 8 --display dell"), .removeDesktop(desktop: 8, display: "dell", moveWindows: false))
+        XCTAssertEqual(try parse("desktop remove 8 --move-windows"), .removeDesktop(desktop: 8, display: nil, moveWindows: true))
+        assertRefused("desktop", "usage: tilespace desktop add")
+        assertRefused("desktop remove", "usage: tilespace desktop add")
+        assertRefused("desktop remove last", "the desktop is a number")
+        assertRefused("desktop add 2", "usage: tilespace desktop add")
+        assertRefused("desktop add --move-windows", "has no option --move-windows")
+        assertRefused("move 2 --move-windows", "has no option --move-windows")
+        assertRefused("desktop add --follow", "has no option --follow")
+    }
+
     func testTheOtherCommands() throws {
         XCTAssertEqual(try parse("windows"), .windows)
         XCTAssertEqual(try parse("list"), .windows)

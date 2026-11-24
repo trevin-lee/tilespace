@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var dragSnapper = DragSnapper(snapper: snapper)
     lazy var tools = Tools(snapper: snapper)
     var failed: [SnapAction] = []   // shortcuts that couldn't be registered
+    var failedDesktopKeys: [String] = []   // the same for adding and removing desktops
     let rectangle = "com.knollsoft.Rectangle"
     var rectangleWatch: NSKeyValueObservation?
     var yielding = false            // whether shortcuts and drag snapping are left to Rectangle now
@@ -76,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hotkeys.unregisterAll()
         dragSnapper.stop()
         failed = []
+        failedDesktopKeys = []
         yielding = rectangleRunning
         guard !yielding else { return }
         if defaults.bool(forKey: "dragSnapOn") { dragSnapper.start() }
@@ -84,6 +86,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if !hotkeys.register(s, { [unowned self] in snapFocused(action) }) {
                 failed.append(action)
                 NSLog("couldn't set up the shortcut for %@", action.title)
+            }
+        }
+        let desktopKeys: [(String, Shortcut, () -> Void)] = [
+            ("Add Desktop", addDesktopShortcut, { [unowned self] in addDesktopHere(nil) }),
+            ("Remove Last Desktop", removeDesktopShortcut, { [unowned self] in removeLastDesktopHere(nil) }),
+        ]
+        for (title, s, f) in desktopKeys {
+            if !hotkeys.register(s, f) {
+                failedDesktopKeys.append(title)
+                NSLog("couldn't set up the shortcut for %@", title)
+            }
+        }
+    }
+
+    // Add a desktop to the frontmost window's display. From a shortcut (no menu item) an error
+    // is a beep; from the menu it's said.
+    @objc func addDesktopHere(_ mi: NSMenuItem?) {
+        desktopChange(from: mi, failed: "Couldn't add a desktop") { try addDesktop() }
+    }
+
+    // Remove the frontmost window's display's last desktop, if it isn't showing and has no windows.
+    @objc func removeLastDesktopHere(_ mi: NSMenuItem?) {
+        desktopChange(from: mi, failed: "Couldn't remove a desktop") {
+            try removeLastDesktop()
+        }
+    }
+
+    private func desktopChange(from mi: NSMenuItem?, failed: String, _ f: @escaping () throws -> String) {
+        // once the menu has closed: Mission Control has to come up
+        DispatchQueue.main.async {
+            do { _ = try f() } catch {
+                NSLog("%@: %@", failed, "\(error)")
+                guard mi != nil else { return NSSound.beep() }
+                let alert = NSAlert()
+                alert.messageText = failed
+                alert.informativeText = "\(error)".prefix(1).uppercased() + "\(error)".dropFirst()
+                NSApp.activate(ignoringOtherApps: true)
+                alert.runModal()
             }
         }
     }
@@ -103,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(withTitle: "Shortcuts and drag snapping are off while Rectangle runs", action: nil, keyEquivalent: "")
             menu.addItem(withTitle: "Quit Rectangle", action: #selector(quitRectangle), keyEquivalent: "").target = self
             menu.addItem(.separator())
-        } else if let notice = shortcutNotice(failed.map(\.title)) {
+        } else if let notice = shortcutNotice(failed.map(\.title) + failedDesktopKeys) {
             menu.addItem(withTitle: notice, action: nil, keyEquivalent: "")
             menu.addItem(.separator())
         }
@@ -138,6 +178,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let mi = move.submenu!.addItem(withTitle: c.title, action: #selector(moveToDesktop), keyEquivalent: "")
             mi.target = self
             mi.representedObject = ["display": display, "desktop": desktop] as [String: Any]
+        }
+        for (title, action, s) in [("Add Desktop", #selector(addDesktopHere), addDesktopShortcut),
+                                   ("Remove Last Desktop", #selector(removeLastDesktopHere), removeDesktopShortcut)] {
+            let mi = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
+            mi.target = self
+            if !hotkeys.isEmpty, !failedDesktopKeys.contains(title) {
+                mi.keyEquivalent = s.keyEquivalent
+                mi.keyEquivalentModifierMask = s.mods
+            }
         }
         menu.addItem(.separator())
         for (title, key) in [("Keyboard Shortcuts", "shortcutsOn"), ("Snap by Dragging to Screen Edges", "dragSnapOn")] {

@@ -14,6 +14,11 @@
 //   tilespace switch <desktop> [--display <name>]
 //                                         switch_desktop: show desktop N on the display named, or
 //                                         the frontmost window's
+//   tilespace desktop add [--display <name>]
+//                                         add_desktop: a desktop after the display's last
+//   tilespace desktop remove <desktop> [--display <name>] [--move-windows]
+//                                         remove_desktop: never the showing or last one, nor one
+//                                         with windows unless --move-windows
 //   tilespace mcp [add | remove]          the MCP server's address, or add it to / remove it from Claude Code
 //
 // In both, the window comes last and no window means the frontmost app's. `list` and `spaces`
@@ -34,6 +39,11 @@ let usage = """
            tilespace switch <desktop> [--display <name>]
                                                 show desktop N (from 1) on a display: the one named, or else the
                                                 frontmost window's. Only that display switches.
+           tilespace desktop add [--display <name>]
+                                                add a desktop to a display (the frontmost window's if none is named)
+           tilespace desktop remove <desktop> [--display <name>] [--move-windows]
+                                                remove one; never the one showing or the last, and not one with
+                                                windows on it unless --move-windows
            tilespace mcp [add | remove]         the MCP server's address; add it to or remove it from Claude Code
            tilespace --version
 
@@ -66,7 +76,7 @@ func post(_ body: Data) -> Result<Data, Error> {
 }
 
 // Call a tool on the app, starting the app first if nothing is listening.
-func call(_ tool: Tool, _ arguments: [String: Any] = [:]) -> Never {
+func call(_ tool: Tool, _ arguments: [String: Any] = [:], reword: (String) -> String = { $0 }) -> Never {
     let request: [String: Any] = ["jsonrpc": "2.0", "id": 1, "method": "tools/call",
                                   "params": ["name": tool.rawValue, "arguments": arguments]]
     let body = try! JSONSerialization.data(withJSONObject: request)
@@ -96,7 +106,7 @@ func call(_ tool: Tool, _ arguments: [String: Any] = [:]) -> Never {
         if let err = json?["error"] as? [String: Any] { die(err["message"] as? String ?? "error") }
         guard let result = json?["result"] as? [String: Any] else { die("unexpected reply from TileSpace") }
         let text = (result["content"] as? [[String: Any]] ?? []).compactMap { $0["text"] as? String }.joined(separator: "\n")
-        if result["isError"] as? Bool == true { die(text) }
+        if result["isError"] as? Bool == true { die(reword(text)) }
         if !text.isEmpty { print(text) }
         exit(0)
     }
@@ -126,6 +136,13 @@ case .switchDesktop(let desktop, let display):
     var a: [String: Any] = ["desktop": desktop]
     if let display { a["display"] = display }
     call(.switchDesktop, a)
+case .addDesktop(let display):
+    call(.addDesktop, display.map { ["display": $0] } ?? [:])
+case .removeDesktop(let desktop, let display, let moveWindows):
+    var a: [String: Any] = ["desktop": desktop, "move_windows": moveWindows]
+    if let display { a["display"] = display }
+    // the app names the MCP parameter; here it's an option
+    call(.removeDesktop, a) { $0.replacingOccurrences(of: moveWindowsHint, with: moveWindowsOptionHint) }
 case .mcp:
     print("""
         TileSpace's MCP server: \(serverURL) (Streamable HTTP, on while TileSpace runs)

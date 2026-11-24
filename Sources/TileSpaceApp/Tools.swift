@@ -56,6 +56,18 @@ final class Tools {
                 }
                 let r = try snapper.run(action, on: el)
                 return ToolResult("\(r.result.cliName): \(describe(r.rect))")
+            case .addDesktop:
+                return ToolResult(try addDesktop(display: args["display"] as? String))
+            case .removeDesktop:
+                guard let desktop = (args["desktop"] as? NSNumber)?.intValue ?? (args["desktop"] as? String).flatMap(Int.init) else {
+                    throw TileSpaceError("desktop must be a number starting at 1")
+                }
+                do {
+                    return ToolResult(try removeDesktop(desktop, display: args["display"] as? String,
+                                                        moveWindows: args["move_windows"] as? Bool ?? false))
+                } catch let e as WindowsOnDesktop {
+                    throw TileSpaceError("\(e) \(moveWindowsHint)")
+                }
             case .switchDesktop:
                 guard let desktop = (args["desktop"] as? NSNumber)?.intValue ?? (args["desktop"] as? String).flatMap(Int.init) else {
                     throw TileSpaceError("desktop must be a number starting at 1")

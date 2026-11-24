@@ -87,6 +87,7 @@ defaults delete com.trevinlee.tilespace         # its settings; a later install 
 | ⌃⌥ = and − | Larger, smaller |
 | ⌃⌥ ⌫ | Restore |
 | ⌃⌥⌘ ← → | Previous, next display |
+| ⌃⌥⌘ = and − | Add a desktop, remove the last desktop (of the frontmost window's display) |
 
 The shortcuts are fixed: they can't be changed, only switched off all together in the menu.
 The fourths and three-fourths have none. They're in the menu and available as links and
@@ -138,6 +139,8 @@ tilespace move <desktop> [<window>]              # move a window to desktop N on
 tilespace move <desktop> [<window>] --display built-in   # ...or on another display
 tilespace move <desktop> [<window>] --follow     # ...and stay on that desktop
 tilespace switch <desktop> [--display <name>]    # show desktop N on one display
+tilespace desktop add [--display <name>]         # add a desktop to a display
+tilespace desktop remove <desktop> [--display <name>] [--move-windows]   # remove one
 tilespace --version
 ```
 
@@ -177,6 +180,16 @@ display has focus. Use it to bring a desktop up before snapping or moving a wind
 It presses the same "Switch to Desktop N" shortcuts as `move`, so it needs them on, and
 reaches the first 16 desktops counting across displays.
 
+`tilespace desktop add` adds a desktop after a display's last one, and `tilespace desktop
+remove 8 --display dell` removes desktop 8 of the display named. Both act on the frontmost
+window's display when no display is named. macOS has no way to do this other than Mission
+Control, so TileSpace opens Mission Control for a moment and uses its own add and remove
+controls through Accessibility, which works with SIP on. It never removes the desktop that's
+showing or a display's last desktop. A desktop with windows on it is refused, with the windows
+named, unless you pass `--move-windows`, and then macOS moves them to another desktop. The
+menu has Add Desktop (⌃⌥⌘=) and Remove Last Desktop (⌃⌥⌘−) for the frontmost window's display.
+Mission Control's controls are undocumented: Apple moved them in macOS 27, and could again.
+
 The command starts TileSpace.app if it isn't running. `list` and `spaces` still work as the
 old names of `windows` and `desktops`.
 
@@ -201,6 +214,8 @@ tool:
 | `list_desktops` | `tilespace desktops` | The desktops on each display, and which one is showing |
 | `snap_window` | `tilespace snap` | Any snap action, on a window or the focused one; returns the frame the window ended up with |
 | `switch_desktop` | `tilespace switch` | Show desktop N on one display |
+| `add_desktop` | `tilespace desktop add` | Add a desktop to a display |
+| `remove_desktop` | `tilespace desktop remove` | Remove a desktop, never the showing or last one |
 | `move_window_to_desktop` | `tilespace move` | Move a window, or the focused one, to desktop N, on its own display or another |
 
 The port is always 8453, so the command line and every client know where to find the app. If
